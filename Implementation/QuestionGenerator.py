@@ -1,6 +1,9 @@
 import random
 import math
 import re
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
 
 def generate_lzw_question():
     # Step 1 — Define fixed alphabet
@@ -19,35 +22,52 @@ def generate_lzw_question():
     text_length = max(8, min(text_length, 30))
     repeats_required = max(2, repeats_required)
 
-    # Entropy-based symbol distributions (Shannon 1948) ---
+    # Entropy-based symbol distributions (Shannon 1948)
     if entropy_level == "low":
-        # Strongly skewed → predictable → low entropy (< 1 bit)
         probabilities = [0.80, 0.10, 0.05, 0.05]
     else:
-        # Uniform → maximally unpredictable → high entropy (= 2 bits)
         probabilities = [0.25, 0.25, 0.25, 0.25]
 
     # --- Generate valid text ---
     while True:
-        # sample symbols using Shannon-inspired probabilities
-        text = ''.join(random.choices(symbols, probabilities) for _ in range(text_length))
+    # generate string according to probabilities
+        text = ''.join(random.choices(symbols, probabilities, k=text_length))
 
-        # (a) ensure minimal appearance of each symbol
         if not all(text.count(ch) >= 2 for ch in symbols):
             continue
-        
-        # (b) ensure enough repeating substrings
+
         repeats = {text[i:i+2] for i in range(len(text)-1) if text.count(text[i:i+2]) > 1}
         if len(repeats) < repeats_required:
             continue
 
-        # (c) avoid very long runs (makes it TOO low entropy)
         if re.search(r'(.)\1{3,}', text):
             continue
 
         break
 
-    # Step 3 — Simulate LZW compression (max dict size = 11)
+    # Testing Generatinh PDF of table showing text ---
+    pdf_filename = "lzw_question_table.pdf"
+    doc = SimpleDocTemplate(pdf_filename, pagesize=letter)
+
+    # Table content: one row, each symbol in its own cell
+    table_data = [list(text)]
+
+    table = Table(table_data)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+        ('BOX', (0,0), (-1,-1), 1, colors.black),
+        ('GRID', (0,0), (-1,-1), 1, colors.black),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('FONTSIZE', (0,0), (-1,-1), 14),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('TOPPADDING', (0,0), (-1,-1), 6),
+    ]))
+
+    doc.build([table])
+
+    print(f"\nPDF successfully created: {pdf_filename}\n")
+
+    # Step 3 — LZW Compression (max dict size = 11)
     dictionary = {ch: idx for idx, ch in enumerate(symbols)}
     dict_size = len(dictionary)
     w = ""
@@ -79,6 +99,7 @@ Alphabet: {alphabet}
 Entropy Setting: {entropy_level.upper()}
 Symbol Probabilities: {probabilities}
 Input Text: {text}
+(PDF table version saved as: {pdf_filename})
 
 Tasks:
 1. Apply LZW compression to the input text.
