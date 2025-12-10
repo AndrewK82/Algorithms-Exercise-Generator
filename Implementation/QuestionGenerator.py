@@ -1,13 +1,15 @@
 import random
 import math
 import re
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 
 def generate_lzw_question():
     # Step 1 — Define fixed alphabet
     symbols = ['A', 'C', 'T', 'G']
+    pdf_filename="lzw_question.pdf"
     alphabet = set(symbols)
 
     # --- User inputs ---
@@ -30,7 +32,6 @@ def generate_lzw_question():
 
     # --- Generate valid text ---
     while True:
-    # generate string according to probabilities
         text = ''.join(random.choices(symbols, probabilities, k=text_length))
 
         if not all(text.count(ch) >= 2 for ch in symbols):
@@ -44,28 +45,6 @@ def generate_lzw_question():
             continue
 
         break
-
-    # Testing Generatinh PDF of table showing text ---
-    pdf_filename = "lzw_question_table.pdf"
-    doc = SimpleDocTemplate(pdf_filename, pagesize=letter)
-
-    # Table content: one row, each symbol in its own cell
-    table_data = [list(text)]
-
-    table = Table(table_data)
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
-        ('BOX', (0,0), (-1,-1), 1, colors.black),
-        ('GRID', (0,0), (-1,-1), 1, colors.black),
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ('FONTSIZE', (0,0), (-1,-1), 14),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-        ('TOPPADDING', (0,0), (-1,-1), 6),
-    ]))
-
-    doc.build([table])
-
-    print(f"\nPDF successfully created: {pdf_filename}\n")
 
     # Step 3 — LZW Compression (max dict size = 11)
     dictionary = {ch: idx for idx, ch in enumerate(symbols)}
@@ -91,36 +70,115 @@ def generate_lzw_question():
     code_bits = math.ceil(math.log2(len(dictionary)))
     compressed_bits = len(compressed_output) * code_bits
 
-    # Step 5 — Output question prompt
-    question = f"""
-LZW Compression Question
-------------------------
-Alphabet: {alphabet}
-Entropy Setting: {entropy_level.upper()}
-Symbol Probabilities: {probabilities}
-Input Text: {text}
-(PDF table version saved as: {pdf_filename})
+    # ---- PDF GENERATION ----
 
-Tasks:
-1. Apply LZW compression to the input text.
-2. Show each dictionary expansion step until 11 entries exist.
-3. Identify at least two repeating substrings.
-4. Provide the final encoded output sequence.
-5. Calculate:
-   - Original size in bits (8 bits per symbol)
-   - Compressed size based on final dictionary size
+    doc = SimpleDocTemplate(pdf_filename, pagesize=letter)
+    styles = getSampleStyleSheet()
+    elements = []
 
----
-Example Data (for verification):
-Initial Dictionary: { {k:v for k,v in list(dictionary.items())[:4]} }
-Final Dictionary Size: {len(dictionary)}
-Original Bits: {original_bits} bits
-Compressed Bits: {compressed_bits} bits
-Encoded Output (indices): {compressed_output}
+    # Title
+    elements.append(Paragraph("<b>LZW Compression Question</b>", styles['Title']))
+    elements.append(Spacer(1, 12))
+
+    # Text table
+    table_data = [list(text)]
+    text_table = Table(table_data)
+    text_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+        ('BOX', (0,0), (-1,-1), 1, colors.black),
+        ('GRID', (0,0), (-1,-1), 1, colors.black),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('FONTSIZE', (0,0), (-1,-1), 12),
+    ]))
+
+    elements.append(Paragraph("Input Text:", styles['Heading3']))
+    elements.append(text_table)
+    elements.append(Spacer(1, 16))
+
+    # Question text
+    question_text = f"""
+<b>Tasks</b><br/><br/>
+1. Apply LZW compression to the input text shown above.<br/>
+2. Show each dictionary expansion step until the dictionary reaches 11 entries.<br/>
+3. Identify at least two repeating substrings in the input.<br/>
+4. Provide the final LZW encoded output sequence.<br/>
+5. Calculate:<br/>
+&nbsp;&nbsp;• Original size in bits (8 bits per symbol)<br/>
+&nbsp;&nbsp;• Compressed size in bits using the final dictionary size<br/><br/>
+
+<b>Examiner Information (not shown to students):</b><br/>
+Initial Dictionary: { {ch: idx for idx, ch in enumerate(symbols)} }<br/>
+Final Dictionary Size: {len(dictionary)}<br/>
+Original Bits: {original_bits} bits<br/>
+Compressed Bits: {compressed_bits} bits<br/>
+Encoded Output: {compressed_output}<br/>
 """
-    print(question)
 
+    elements.append(Paragraph(question_text, styles['BodyText']))
+
+    # --------------------------------------------------------
+    # STEP-BY-STEP LZW SOLUTION (ADDED SECTION)
+    # --------------------------------------------------------
+    elements.append(Spacer(1, 25))
+    elements.append(Paragraph("<b>Step-by-Step LZW Compression Solution</b>", styles['Heading2']))
+    elements.append(Spacer(1, 12))
+
+    # Re-run LZW with logging
+    dictionary = {ch: idx for idx, ch in enumerate(symbols)}
+    dict_size = len(dictionary)
+    w = ""
+    steps = []
+
+    for c in text:
+        wc = w + c
+        if wc in dictionary:
+            steps.append((w, c, wc, "", ""))  # no output yet
+            w = wc
+        else:
+            steps.append((w, c, wc, dictionary[w],
+                          f"{wc} → {dict_size}" if dict_size < 11 else "No (max size)"))
+            if dict_size < 11:
+                dictionary[wc] = dict_size
+                dict_size += 1
+            w = c
+
+    steps.append((w, "", w, dictionary[w], ""))  # final output
+
+    # Build table
+    table_data = [["w", "c", "wc", "Output Code", "New Dictionary Entry"]]
+
+    for w_val, c_val, wc_val, out_val, add_val in steps:
+        table_data.append([w_val, c_val, wc_val,
+                           "" if out_val == "" else str(out_val),
+                           add_val])
+
+    step_table = Table(table_data, colWidths=[60, 60, 70, 80, 150])
+    step_table.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
+        ("GRID", (0,0), (-1,-1), 1, colors.black),
+        ("FONTSIZE", (0,0), (-1,-1), 8),
+        ("ALIGN", (0,0), (-1,-1), "CENTER"),
+    ]))
+
+    elements.append(step_table)
+    elements.append(Spacer(1, 20))
+
+    elements.append(Paragraph("<b>Final Encoded Output:</b>", styles['Heading3']))
+    elements.append(Paragraph(str(compressed_output), styles['BodyText']))
+
+    # Build PDF
+    doc.build(elements)
+
+    return {
+        "text": text,
+        "compressed_output": compressed_output,
+        "dictionary_size": len(dictionary),
+        "pdf": pdf_filename
+    }
 
 # Run the script
 if __name__ == "__main__":
-    generate_lzw_question()
+    result = generate_lzw_question()
+    print("PDF generated:", result["pdf"])
+    print("Input text:", result["text"])
+    print("Encoded output:", result["compressed_output"])
