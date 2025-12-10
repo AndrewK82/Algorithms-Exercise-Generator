@@ -11,6 +11,7 @@ def generate_lzw_question():
     symbols = ['A', 'C', 'T', 'G']
     pdf_filename="lzw_question.pdf"
     alphabet = set(symbols)
+    TARGET_DICT_SIZE = 11  # desired final dictionary size
 
     # --- User inputs ---
     try:
@@ -30,7 +31,7 @@ def generate_lzw_question():
     else:
         probabilities = [0.25, 0.25, 0.25, 0.25]
 
-    # --- Generate valid text ---
+    # --- Generate valid text until dictionary naturally reaches target size ---
     while True:
         text = ''.join(random.choices(symbols, probabilities, k=text_length))
 
@@ -44,26 +45,26 @@ def generate_lzw_question():
         if re.search(r'(.)\1{3,}', text):
             continue
 
-        break
+        # Run full LZW naturally to check dictionary size
+        dictionary = {ch: idx for idx, ch in enumerate(symbols)}
+        dict_size = len(dictionary)
+        w = ""
+        compressed_output = []
 
-    # Step 3 — LZW Compression (max dict size = 11)
-    dictionary = {ch: idx for idx, ch in enumerate(symbols)}
-    dict_size = len(dictionary)
-    w = ""
-    compressed_output = []
-
-    for c in text:
-        wc = w + c
-        if wc in dictionary:
-            w = wc
-        else:
-            compressed_output.append(dictionary[w])
-            if dict_size < 11:
+        for c in text:
+            wc = w + c
+            if wc in dictionary:
+                w = wc
+            else:
+                compressed_output.append(dictionary[w])
                 dictionary[wc] = dict_size
                 dict_size += 1
-            w = c
-    if w:
-        compressed_output.append(dictionary[w])
+                w = c
+        if w:
+            compressed_output.append(dictionary[w])
+
+        if dict_size == TARGET_DICT_SIZE:
+            break  # valid text found
 
     # Step 4 — Bits calculation
     original_bits = len(text) * 8
@@ -99,7 +100,7 @@ def generate_lzw_question():
     question_text = f"""
 <b>Tasks</b><br/><br/>
 1. Apply LZW compression to the input text shown above.<br/>
-2. Show each dictionary expansion step until the dictionary reaches 11 entries.<br/>
+2. Show each dictionary expansion step until the dictionary reaches {TARGET_DICT_SIZE} entries.<br/>
 3. Identify at least two repeating substrings in the input.<br/>
 4. Provide the final LZW encoded output sequence.<br/>
 5. Calculate:<br/>
@@ -117,7 +118,7 @@ Encoded Output: {compressed_output}<br/>
     elements.append(Paragraph(question_text, styles['BodyText']))
 
     # --------------------------------------------------------
-    # STEP-BY-STEP LZW SOLUTION (ADDED SECTION)
+    # STEP-BY-STEP LZW SOLUTION
     # --------------------------------------------------------
     elements.append(Spacer(1, 25))
     elements.append(Paragraph("<b>Step-by-Step LZW Compression Solution</b>", styles['Heading2']))
@@ -135,11 +136,9 @@ Encoded Output: {compressed_output}<br/>
             steps.append((w, c, wc, "", ""))  # no output yet
             w = wc
         else:
-            steps.append((w, c, wc, dictionary[w],
-                          f"{wc} → {dict_size}" if dict_size < 11 else "No (max size)"))
-            if dict_size < 11:
-                dictionary[wc] = dict_size
-                dict_size += 1
+            steps.append((w, c, wc, dictionary[w], f"{wc} → {dict_size}"))
+            dictionary[wc] = dict_size
+            dict_size += 1
             w = c
 
     steps.append((w, "", w, dictionary[w], ""))  # final output
