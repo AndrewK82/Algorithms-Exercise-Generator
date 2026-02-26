@@ -11,61 +11,49 @@ from reportlab.lib.pagesizes import letter
 # ------------------------------------------------------------------
 SYMBOLS = ['A', 'C', 'T', 'G']
 
-# Controls how "dense" the dictionary becomes per character of input
-# 0.5 means for a length 20 string, we expect ~10 new dictionary entries.
 SCALING_FACTORS = {
-    'low_entropy': 0.4,   # More repeats, fewer new dict entries (Higher compression)
-    'high_entropy': 0.7   # Random noise, constant new dict entries (Lower compression)
+    'low_entropy': 0.4,
+    'high_entropy': 0.7
 }
 
+# ------------------------------------------------------------------
+# DIFFICULTY CONTROL
+# ------------------------------------------------------------------
 def calculate_target_dict_size(length, entropy_type):
-    """Calculates the target dictionary size based on length and difficulty."""
     base_size = len(SYMBOLS)
     growth = int(length * SCALING_FACTORS[entropy_type])
-    # Ensure at least 3 new entries for very short strings so the problem isn't trivial
     return base_size + max(3, growth)
 
+# ------------------------------------------------------------------
+# SMART STRING GENERATION
+# ------------------------------------------------------------------
 def generate_smart_lzw_string(length, entropy_type):
-    """
-    Generates a string that guarantees a specific LZW behavior.
-    Instead of random filtering, it injects patterns to control dictionary growth.
-    """
     target_dict_size = calculate_target_dict_size(length, entropy_type)
-    
-    # Timeout protection (5 seconds)
     start_time = time.time()
-    
+
     while time.time() - start_time < 5:
-        # 1. Start with a random seed based on probabilities
         if entropy_type == 'low_entropy':
-            weights = [0.6, 0.2, 0.1, 0.1] # Bias towards one char to force patterns
+            weights = [0.6, 0.2, 0.1, 0.1]
         else:
             weights = [0.25, 0.25, 0.25, 0.25]
-            
-        candidate = random.choices(SYMBOLS, weights=weights, k=length)
-        text = "".join(candidate)
 
-        # 2. Run LZW simulation to check ACTUAL difficulty
+        text = "".join(random.choices(SYMBOLS, weights=weights, k=length))
         d_size, compressed = simulate_lzw(text)
-        
-        # 3. Check constraints
-        # We allow a margin of error of +/- 1 dictionary entry to prevent infinite loops
-        if abs(d_size - target_dict_size) <= 1:
-            # Secondary Check: Must have at least one multi-char code output
-            # (Length of text > Length of compressed output implies compression occurred)
-            if len(compressed) < len(text):
-                return text, d_size, compressed
 
-    # Fallback if perfect match not found quickly
+        if abs(d_size - target_dict_size) <= 1 and len(compressed) < len(text):
+            return text, d_size, compressed
+
     return text, d_size, compressed
 
+# ------------------------------------------------------------------
+# LZW SIMULATION
+# ------------------------------------------------------------------
 def simulate_lzw(text):
-    """Simulates LZW to return final dictionary size and output."""
     dictionary = {ch: idx for idx, ch in enumerate(SYMBOLS)}
     dict_size = len(dictionary)
     w = ""
     output = []
-    
+
     for c in text:
         wc = w + c
         if wc in dictionary:
@@ -75,37 +63,31 @@ def simulate_lzw(text):
             dictionary[wc] = dict_size
             dict_size += 1
             w = c
-    
+
     if w:
         output.append(dictionary[w])
-        
+
     return dict_size, output
 
+# ------------------------------------------------------------------
+# PDF GENERATION (EXAM PAPER)
+# ------------------------------------------------------------------
 def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_compression.pdf"):
     doc = SimpleDocTemplate(filename, pagesize=letter)
     styles = getSampleStyleSheet()
     elements = []
 
-    # Title
     elements.append(Paragraph("<b>LZW Compression Challenge</b>", styles['Title']))
     elements.append(Spacer(1, 12))
 
-    # Input Metrics
     original_bits = len(text) * 8
-    # LZW bit width is dynamic, usually ceil(log2(dict_size))
-    # We use the final dict size to determine the bit width for the whole stream 
-    # (Simplified for exam contexts; real LZW expands width dynamically)
     bit_width = math.ceil(math.log2(final_dict_size))
     compressed_bits = len(compressed_out) * bit_width
-    
-    ratio = (1 - (compressed_bits / original_bits)) * 100
+    ratio = (1 - compressed_bits / original_bits) * 100
 
-    # Question Section
     elements.append(Paragraph(f"<b>Input Sequence (Length {len(text)}):</b>", styles['Heading3']))
-    
-    # Stylized Input Table
-    data = [list(text)]
-    t = Table(data, colWidths=[20]*len(text))
+
+    t = Table([list(text)], colWidths=[20]*len(text))
     t.setStyle(TableStyle([
         ('GRID', (0,0), (-1,-1), 1, colors.black),
         ('BACKGROUND', (0,0), (-1,-1), colors.whitesmoke),
@@ -116,26 +98,23 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
 
     question_text = f"""
     <b>Task Requirements:</b><br/><br/>
-    1. <b>Trace the LZW algorithm</b> for the input above.<br/>
-    2. <b>Dictionary Constraint:</b> The initial dictionary contains A(0), C(1), T(2), G(3).<br/>
-    3. <b>Show your work:</b> List every step where a new dictionary entry is created.<br/>
-    4. <b>Calculate Efficiency:</b> Compare the 8-bit ASCII size vs. LZW size (using {bit_width}-bit codes).
+    1. Trace the LZW algorithm.<br/>
+    2. Initial dictionary: A(0), C(1), T(2), G(3).<br/>
+    3. Show all dictionary insertions.<br/>
+    4. Compare ASCII vs LZW using {bit_width}-bit codes.
     """
     elements.append(Paragraph(question_text, styles['BodyText']))
     elements.append(Spacer(1, 25))
     elements.append(Paragraph("-" * 60, styles['BodyText']))
     elements.append(Spacer(1, 15))
 
-    # Solution Section
     elements.append(Paragraph("<b>Examiner Solution Key</b>", styles['Heading2']))
-    
-    # Step-by-Step Table
-    # Re-run simulation to capture steps
+
     dictionary = {ch: idx for idx, ch in enumerate(SYMBOLS)}
     dict_size = len(dictionary)
     w = ""
-    history = [["Current w", "Next c", "New Entry (w+c)", "Entry Index", "Output Code"]]
-    
+    history = [["Current w", "Next c", "New Entry", "Index", "Output"]]
+
     for c in text:
         wc = w + c
         if wc in dictionary:
@@ -145,6 +124,7 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
             dictionary[wc] = dict_size
             dict_size += 1
             w = c
+
     history.append([w, "EOF", "-", "-", str(dictionary[w])])
 
     t_steps = Table(history)
@@ -157,13 +137,12 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
     elements.append(t_steps)
     elements.append(Spacer(1, 15))
 
-    # Summary Stats
     stats = f"""
     <b>Final Statistics:</b><br/>
-    Final Dictionary Size: {final_dict_size}<br/>
-    Encoded Sequence: {compressed_out}<br/>
+    Dictionary Size: {final_dict_size}<br/>
+    Encoded Output: {compressed_out}<br/>
     Original Size: {original_bits} bits<br/>
-    Compressed Size: {compressed_bits} bits ({len(compressed_out)} codes * {bit_width} bits)<br/>
+    Compressed Size: {compressed_bits} bits<br/>
     Compression Savings: {ratio:.1f}%
     """
     elements.append(Paragraph(stats, styles['BodyText']))
@@ -172,35 +151,116 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
     return filename
 
 # ------------------------------------------------------------------
-# MAIN EXECUTION
+# LaTeX GENERATION (EXAM PAPER)
+# ------------------------------------------------------------------
+def generate_latex_exam(text, compressed_out, final_dict_size, filename="lzw_exam.tex"):
+    bit_width = math.ceil(math.log2(final_dict_size))
+    original_bits = len(text) * 8
+    compressed_bits = len(compressed_out) * bit_width
+    ratio = (1 - compressed_bits / original_bits) * 100
+
+    dictionary = {ch: idx for idx, ch in enumerate(SYMBOLS)}
+    dict_size = len(dictionary)
+    w = ""
+    steps = []
+
+    for c in text:
+        wc = w + c
+        if wc in dictionary:
+            w = wc
+        else:
+            steps.append((w, c, wc, dict_size, dictionary[w]))
+            dictionary[wc] = dict_size
+            dict_size += 1
+            w = c
+    steps.append((w, "EOF", "-", "-", dictionary[w]))
+
+    latex = r"""\documentclass{article}
+\usepackage{geometry}
+\usepackage{array}
+\geometry{margin=1in}
+
+\begin{document}
+
+\section*{LZW Compression Challenge}
+
+\textbf{Input Sequence (Length """ + str(len(text)) + r"""):}
+
+\[
+""" + " \; ".join(text) + r"""
+\]
+
+\textbf{Task Requirements}
+\begin{enumerate}
+\item Trace the LZW algorithm.
+\item Initial dictionary: A(0), C(1), T(2), G(3).
+\item Show all dictionary insertions.
+\item Compare ASCII vs LZW using """ + str(bit_width) + r"""-bit codes.
+\end{enumerate}
+
+\section*{Examiner Solution Key}
+
+\begin{center}
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+Current $w$ & Next $c$ & New Entry & Index & Output \\
+\hline
+"""
+
+    for row in steps:
+        latex += f"{row[0]} & {row[1]} & {row[2]} & {row[3]} & {row[4]} \\\\\n\\hline\n"
+
+    latex += r"""
+\end{tabular}
+\end{center}
+
+\section*{Final Statistics}
+\begin{itemize}
+\item Dictionary Size: """ + str(final_dict_size) + r"""
+\item Encoded Output: """ + str(compressed_out) + r"""
+\item Original Size: """ + str(original_bits) + r""" bits
+\item Compressed Size: """ + str(compressed_bits) + r""" bits
+\item Compression Savings: """ + f"{ratio:.1f}" + r"""\%
+\end{itemize}
+
+\end{document}
+"""
+
+    with open(filename, "w") as f:
+        f.write(latex)
+
+    return filename
+
+# ------------------------------------------------------------------
+# MAIN
 # ------------------------------------------------------------------
 def main():
     print("--- LZW Question Generator ---")
+
     try:
-        length = int(input("Enter string length (8-30): "))
-        length = max(8, min(length, 30)) # Clamp
-        
+        length = int(input("Enter string length (8–30): "))
+        length = max(8, min(length, 30))
+
         print("Select Complexity Profile:")
-        print("1. High Entropy (Random-like, creates many dictionary entries)")
-        print("2. Low Entropy  (Repetitive, tests compression logic deep in dictionary)")
+        print("1. High Entropy")
+        print("2. Low Entropy")
         choice = input("Choice (1 or 2): ").strip()
-        
         entropy = 'high_entropy' if choice == '1' else 'low_entropy'
-        
+
     except ValueError:
-        print("Invalid input. Using defaults: Length 15, High Entropy.")
         length = 15
         entropy = 'high_entropy'
 
-    print(f"\nGenerating valid sequence for Length {length}, {entropy}...")
-    
     text, d_size, out = generate_smart_lzw_string(length, entropy)
-    
-    print(f"Success! Sequence: {text}")
-    print(f"Dictionary grew to: {d_size} entries")
-    
-    pdf_name = generate_pdf_report(text, out, d_size)
-    print(f"PDF generated: {pdf_name}")
+
+    print(f"\nSequence: {text}")
+    print(f"Final Dictionary Size: {d_size}")
+
+    pdf = generate_pdf_report(text, out, d_size)
+    tex = generate_latex_exam(text, out, d_size)
+
+    print(f"PDF generated: {pdf}")
+    print(f"LaTeX generated: {tex}")
 
 if __name__ == "__main__":
     main()
