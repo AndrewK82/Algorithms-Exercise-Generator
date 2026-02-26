@@ -234,8 +234,9 @@ Current $w$ & Next $c$ & New Entry & Index & Output \\
 # ------------------------------------------------------------------
 # MAIN
 # ------------------------------------------------------------------
+
 def main():
-    print("--- LZW Question Generator ---")
+    print("--- LZW Question Generator (25 Questions Mode) ---")
 
     try:
         length = int(input("Enter string length (8–30): "))
@@ -251,16 +252,22 @@ def main():
         length = 15
         entropy = 'high_entropy'
 
-    text, d_size, out = generate_smart_lzw_string(length, entropy)
+    for i in range(1, 26):
+        print(f"\n--- Generating Question {i} ---")
 
-    print(f"\nSequence: {text}")
-    print(f"Final Dictionary Size: {d_size}")
+        text, d_size, out = generate_smart_lzw_string(length, entropy)
 
-    pdf = generate_pdf_report(text, out, d_size)
-    tex = generate_latex_exam(text, out, d_size)
+        print(f"Sequence: {text}")
+        print(f"Final Dictionary Size: {d_size}")
 
-    print(f"PDF generated: {pdf}")
-    print(f"LaTeX generated: {tex}")
+        pdf_name = f"lzw_compression_{i}.pdf"
+        tex_name = f"lzw_exam_{i}.tex"
+
+        generate_pdf_report(text, out, d_size, filename=pdf_name)
+        generate_latex_exam(text, out, d_size, filename=tex_name)
+
+        print(f"PDF generated: {pdf_name}")
+        print(f"LaTeX generated: {tex_name}")
 
 if __name__ == "__main__":
     main()
