@@ -1,6 +1,8 @@
 import random
 import math
 import csv
+import os
+import shutil
 from collections import Counter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
@@ -17,6 +19,26 @@ SCALING_FACTORS = {
     'low_entropy': 0.4,
     'high_entropy': 0.7
 }
+
+ANSWERS_FOLDER = "Answers"
+QUESTIONS_FOLDER = "Questions"
+
+# ------------------------------------------------------------------
+# CLEAR OUTPUT FOLDERS
+# ------------------------------------------------------------------
+
+def clear_output_folders():
+
+    for folder in [ANSWERS_FOLDER, QUESTIONS_FOLDER]:
+
+        if os.path.exists(folder):
+            for file in os.listdir(folder):
+                file_path = os.path.join(folder, file)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+
+        else:
+            os.makedirs(folder)
 
 # ------------------------------------------------------------------
 # ENTROPY CALCULATION
@@ -145,29 +167,40 @@ def log_question_data(filename, row):
 # PDF GENERATION
 # ------------------------------------------------------------------
 
-def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_compression.pdf"):
+def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_compression.pdf", include_solution=True):
+
     doc = SimpleDocTemplate(filename, pagesize=letter)
     styles = getSampleStyleSheet()
     elements = []
+
     elements.append(Paragraph("<b>LZW Compression Challenge</b>", styles['Title']))
     elements.append(Spacer(1, 12))
+
     original_bits = len(text) * 8
+
     dictionary = {ch: idx for idx, ch in enumerate(SYMBOLS)}
     dict_size = len(dictionary)
 
     w = ""
     output = []
+
     history = [["Step", "Position", "Longest String", "Binary Encoding", "String Added", "Code Given"]]
 
     step_counter = 1
     w_start_pos = 1
     total_compressed_bits = 0
+
     for i, c in enumerate(text):
+
         wc = w + c
+
         if wc in dictionary:
             w = wc
+
         else:
+
             if w:
+
                 current_bit_width = max(1, math.ceil(math.log2(dict_size)))
                 binary_code = format(dictionary[w], f'0{current_bit_width}b')
 
@@ -181,17 +214,24 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
                     wc,
                     str(dict_size)
                 ])
+
                 output.append(dictionary[w])
+
                 step_counter += 1
+
             dictionary[wc] = dict_size
             dict_size += 1
+
             w = c
             w_start_pos = i + 1
 
     if w:
+
         current_bit_width = max(1, math.ceil(math.log2(dict_size)))
         binary_code = format(dictionary[w], f'0{current_bit_width}b')
+
         total_compressed_bits += current_bit_width
+
         history.append([
             str(step_counter),
             str(w_start_pos),
@@ -200,8 +240,11 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
             "-",
             "-"
         ])
+
         output.append(dictionary[w])
+
     ratio = (1 - total_compressed_bits / original_bits) * 100
+
     elements.append(Paragraph(f"<b>Input Sequence (Length {len(text)}):</b>", styles['Heading3']))
 
     t = Table([list(text)], colWidths=[20]*len(text))
@@ -225,30 +268,48 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
 
     elements.append(Paragraph(question_text, styles['BodyText']))
     elements.append(Spacer(1, 25))
-    elements.append(Paragraph("<b>Examiner Solution Key</b>", styles['Heading2']))
 
-    t_steps = Table(history)
+    if include_solution:
 
-    t_steps.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ('FONTSIZE', (0,0), (-1,-1), 9)
-    ]))
+        elements.append(Paragraph("<b>Examiner Solution Key</b>", styles['Heading2']))
 
-    elements.append(t_steps)
-    elements.append(Spacer(1, 15))
+        t_steps = Table(history)
 
-    stats = f"""
-    <b>Final Statistics:</b><br/>
-    Dictionary Size: {len(dictionary)}<br/>
-    Encoded Output: {output}<br/>
-    Original Size: {original_bits} bits<br/>
-    Compressed Size: {total_compressed_bits} bits<br/>
-    Compression Savings: {ratio:.1f}%
-    """
+        t_steps.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('FONTSIZE', (0,0), (-1,-1), 9)
+        ]))
 
-    elements.append(Paragraph(stats, styles['BodyText']))
+        elements.append(t_steps)
+        elements.append(Spacer(1, 15))
+
+        stats = f"""
+        <b>Final Statistics:</b><br/>
+        Dictionary Size: {len(dictionary)}<br/>
+        Encoded Output: {output}<br/>
+        Original Size: {original_bits} bits<br/>
+        Compressed Size: {total_compressed_bits} bits<br/>
+        Compression Savings: {ratio:.1f}%
+        """
+
+        elements.append(Paragraph(stats, styles['BodyText']))
+
+    else:
+
+        blank_rows = [[""]*6 for _ in range(len(history)-1)]
+        blank_table = [history[0]] + blank_rows
+
+        t_blank = Table(blank_table)
+
+        t_blank.setStyle(TableStyle([
+            ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('FONTSIZE', (0,0), (-1,-1), 9)
+        ]))
+
+        elements.append(t_blank)
 
     doc.build(elements)
 
@@ -260,8 +321,13 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
 # ------------------------------------------------------------------
 
 def main():
+
+    clear_output_folders()
+
     print("--- LZW Question Generator ---")
+
     try:
+
         length = int(input("Enter string length (8–30): "))
         length = max(8, min(length, 30))
 
@@ -283,7 +349,9 @@ def main():
         num_questions = 5
 
     for i in range(1, num_questions + 1):
+
         print(f"\n--- Generating Question {i} ---")
+
         text, d_size, out, entropy_value = generate_smart_lzw_string(length, entropy)
 
         print(f"Sequence: {text}")
@@ -291,9 +359,11 @@ def main():
         print(f"Shannon Entropy: {round(entropy_value,3)}")
         print(f"LZW Steps: {len(out)}")
 
-        pdf_name = f"lzw_compression_{i}.pdf"
+        answer_pdf = os.path.join(ANSWERS_FOLDER, f"lzw_answer_{i}.pdf")
+        question_pdf = os.path.join(QUESTIONS_FOLDER, f"lzw_question_{i}.pdf")
 
-        generate_pdf_report(text, out, d_size, filename=pdf_name)
+        generate_pdf_report(text, out, d_size, filename=answer_pdf, include_solution=True)
+        generate_pdf_report(text, out, d_size, filename=question_pdf, include_solution=False)
 
         log_question_data(
             "question_metrics.csv",
@@ -307,7 +377,10 @@ def main():
                 len(out)
             ]
         )
-        print(f"PDF generated: {pdf_name}")
+
+        print(f"Answer PDF: {answer_pdf}")
+        print(f"Question PDF: {question_pdf}")
+
 
 if __name__ == "__main__":
     main()
