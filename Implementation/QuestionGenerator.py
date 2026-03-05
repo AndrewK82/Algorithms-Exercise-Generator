@@ -23,16 +23,12 @@ SCALING_FACTORS = {
 # ------------------------------------------------------------------
 
 def calculate_shannon_entropy(text):
-
     counts = Counter(text)
     length = len(text)
-
     entropy = 0
-
     for count in counts.values():
         p = count / length
         entropy -= p * math.log2(p)
-
     return entropy
 
 
@@ -41,10 +37,8 @@ def calculate_shannon_entropy(text):
 # ------------------------------------------------------------------
 
 def calculate_target_dict_size(length, entropy_type):
-
     base_size = len(SYMBOLS)
     growth = int(length * SCALING_FACTORS[entropy_type])
-
     return base_size + max(3, growth)
 
 
@@ -53,7 +47,6 @@ def calculate_target_dict_size(length, entropy_type):
 # ------------------------------------------------------------------
 
 def calculate_target_steps(length):
-
     return max(4, int(length * 0.65))
 
 
@@ -65,30 +58,21 @@ def simulate_lzw(text):
 
     dictionary = {ch: idx for idx, ch in enumerate(SYMBOLS)}
     dict_size = len(dictionary)
-
     w = ""
     output = []
 
     for c in text:
-
         wc = w + c
-
         if wc in dictionary:
             w = wc
-
         else:
-
             if w:
                 output.append(dictionary[w])
-
             dictionary[wc] = dict_size
             dict_size += 1
-
             w = c
-
     if w:
         output.append(dictionary[w])
-
     return dict_size, output
 
 
@@ -97,7 +81,6 @@ def simulate_lzw(text):
 # ------------------------------------------------------------------
 
 def generate_smart_lzw_string(length, entropy_type):
-
     target_dict_size = calculate_target_dict_size(length, entropy_type)
     target_steps = calculate_target_steps(length)
 
@@ -136,9 +119,7 @@ def generate_smart_lzw_string(length, entropy_type):
 # ------------------------------------------------------------------
 
 def log_question_data(filename, row):
-
     file_exists = False
-
     try:
         with open(filename, 'r'):
             file_exists = True
@@ -146,9 +127,7 @@ def log_question_data(filename, row):
         pass
 
     with open(filename, 'a', newline='') as f:
-
         writer = csv.writer(f)
-
         if not file_exists:
             writer.writerow([
                 "Question",
@@ -159,7 +138,6 @@ def log_question_data(filename, row):
                 "Original_Length",
                 "Steps"
             ])
-
         writer.writerow(row)
 
 
@@ -168,40 +146,28 @@ def log_question_data(filename, row):
 # ------------------------------------------------------------------
 
 def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_compression.pdf"):
-
     doc = SimpleDocTemplate(filename, pagesize=letter)
-
     styles = getSampleStyleSheet()
     elements = []
-
     elements.append(Paragraph("<b>LZW Compression Challenge</b>", styles['Title']))
     elements.append(Spacer(1, 12))
-
     original_bits = len(text) * 8
-
     dictionary = {ch: idx for idx, ch in enumerate(SYMBOLS)}
     dict_size = len(dictionary)
 
     w = ""
     output = []
-
     history = [["Step", "Position", "Longest String", "Binary Encoding", "String Added", "Code Given"]]
 
     step_counter = 1
     w_start_pos = 1
     total_compressed_bits = 0
-
     for i, c in enumerate(text):
-
         wc = w + c
-
         if wc in dictionary:
             w = wc
-
         else:
-
             if w:
-
                 current_bit_width = max(1, math.ceil(math.log2(dict_size)))
                 binary_code = format(dictionary[w], f'0{current_bit_width}b')
 
@@ -215,24 +181,17 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
                     wc,
                     str(dict_size)
                 ])
-
                 output.append(dictionary[w])
-
                 step_counter += 1
-
             dictionary[wc] = dict_size
             dict_size += 1
-
             w = c
             w_start_pos = i + 1
 
     if w:
-
         current_bit_width = max(1, math.ceil(math.log2(dict_size)))
         binary_code = format(dictionary[w], f'0{current_bit_width}b')
-
         total_compressed_bits += current_bit_width
-
         history.append([
             str(step_counter),
             str(w_start_pos),
@@ -241,11 +200,8 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
             "-",
             "-"
         ])
-
         output.append(dictionary[w])
-
     ratio = (1 - total_compressed_bits / original_bits) * 100
-
     elements.append(Paragraph(f"<b>Input Sequence (Length {len(text)}):</b>", styles['Heading3']))
 
     t = Table([list(text)], colWidths=[20]*len(text))
@@ -269,7 +225,6 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
 
     elements.append(Paragraph(question_text, styles['BodyText']))
     elements.append(Spacer(1, 25))
-
     elements.append(Paragraph("<b>Examiner Solution Key</b>", styles['Heading2']))
 
     t_steps = Table(history)
@@ -305,11 +260,8 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
 # ------------------------------------------------------------------
 
 def main():
-
     print("--- LZW Question Generator ---")
-
     try:
-
         length = int(input("Enter string length (8–30): "))
         length = max(8, min(length, 30))
 
@@ -331,9 +283,7 @@ def main():
         num_questions = 5
 
     for i in range(1, num_questions + 1):
-
         print(f"\n--- Generating Question {i} ---")
-
         text, d_size, out, entropy_value = generate_smart_lzw_string(length, entropy)
 
         print(f"Sequence: {text}")
@@ -357,9 +307,7 @@ def main():
                 len(out)
             ]
         )
-
         print(f"PDF generated: {pdf_name}")
-
 
 if __name__ == "__main__":
     main()
