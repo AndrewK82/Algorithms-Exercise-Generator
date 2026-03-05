@@ -134,33 +134,55 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
     w = ""
     output = []
     
-    # Updated Header with "Step"
-    history = [["Step", "Current w", "Next c", "New Entry", "New Index", "Output"]]
+    history = [["Step", "Position", "Longest String", "Binary Encoding", "String Added", "Code Given"]]
     step_counter = 1
+    w_start_pos = 1  
+    total_compressed_bits = 0  # Track total bits dynamically
 
-    for c in text:
+    for i, c in enumerate(text):
         wc = w + c
         if wc in dictionary:
             w = wc
         else:
             if w:
-                # Added step_counter to the row
-                history.append([str(step_counter), w, c, wc, str(dict_size), str(dictionary[w])])
+                # Calculate bits needed for the CURRENT dictionary size
+                current_bit_width = max(1, math.ceil(math.log2(dict_size)))
+                binary_code = format(dictionary[w], f'0{current_bit_width}b')
+                total_compressed_bits += current_bit_width
+                
+                history.append([
+                    str(step_counter), 
+                    str(w_start_pos), 
+                    w, 
+                    binary_code, 
+                    wc, 
+                    str(dict_size)
+                ])
                 output.append(dictionary[w])
                 step_counter += 1
             
             dictionary[wc] = dict_size
             dict_size += 1
             w = c
+            w_start_pos = i + 1
 
     if w:
-        # Added step_counter to the final EOF row
-        history.append([str(step_counter), w, "EOF", "-", "-", str(dictionary[w])])
+        # Calculate bits needed for the final output
+        current_bit_width = max(1, math.ceil(math.log2(dict_size)))
+        binary_code = format(dictionary[w], f'0{current_bit_width}b')
+        total_compressed_bits += current_bit_width
+        
+        history.append([
+            str(step_counter), 
+            str(w_start_pos), 
+            w, 
+            binary_code, 
+            "-", 
+            "-"
+        ])
         output.append(dictionary[w])
 
-    bit_width = math.ceil(math.log2(len(dictionary)))
-    compressed_bits = len(output) * bit_width
-    ratio = (1 - compressed_bits / original_bits) * 100
+    ratio = (1 - total_compressed_bits / original_bits) * 100
 
     elements.append(Paragraph(f"<b>Input Sequence (Length {len(text)}):</b>", styles['Heading3']))
 
@@ -173,12 +195,12 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
     elements.append(t)
     elements.append(Spacer(1, 15))
 
-    question_text = f"""
+    question_text = """
     <b>Task Requirements:</b><br/><br/>
-    1. Show the value of w and c at each step.<br/>
-    2. Indicate when a new dictionary entry is added.<br/>
-    3. Record the output code each time output occurs.<br/>
-    4. Compare ASCII vs LZW using fixed-width {bit_width}-bit codes.
+    1. Show the step and position in the string.<br/>
+    2. Identify the longest matching string in the dictionary.<br/>
+    3. Provide the binary encoding, using the minimum number of bits required for the <i>current</i> dictionary size.<br/>
+    4. Record the new string added to the dictionary and its integer code.
     """
     elements.append(Paragraph(question_text, styles['BodyText']))
     elements.append(Spacer(1, 25))
@@ -187,13 +209,13 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
 
     elements.append(Paragraph("<b>Examiner Solution Key</b>", styles['Heading2']))
 
-    # Table creation remains the same, but will now render 6 columns
     t_steps = Table(history)
     t_steps.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
         ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('FONTSIZE', (0,0), (-1,-1), 9),
+        ('BOTTOMPADDING', (0,0), (-1,0), 10), 
     ]))
     elements.append(t_steps)
     elements.append(Spacer(1, 15))
@@ -203,7 +225,7 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
     Dictionary Size: {len(dictionary)}<br/>
     Encoded Output: {output}<br/>
     Original Size: {original_bits} bits<br/>
-    Compressed Size: {compressed_bits} bits<br/>
+    Compressed Size: {total_compressed_bits} bits<br/>
     Compression Savings: {ratio:.1f}%
     """
     elements.append(Paragraph(stats, styles['BodyText']))
