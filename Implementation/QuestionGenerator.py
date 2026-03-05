@@ -45,7 +45,7 @@ def generate_smart_lzw_string(length, entropy_type):
     target_dict_size = calculate_target_dict_size(length, entropy_type)
 
     # attempt limit instead of time limit (more reproducible)
-    for _ in range(2000):
+    for _ in range(100000):
 
         if entropy_type == 'low_entropy':
             weights = [0.6, 0.2, 0.1, 0.1]
@@ -80,7 +80,8 @@ def simulate_lzw(text):
         if wc in dictionary:
             w = wc
         else:
-            output.append(dictionary[w])
+            if w:  # safety
+                output.append(dictionary[w])
             dictionary[wc] = dict_size
             dict_size += 1
             w = c
@@ -126,8 +127,39 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
     elements.append(Spacer(1, 12))
 
     original_bits = len(text) * 8
-    bit_width = math.ceil(math.log2(final_dict_size))
-    compressed_bits = len(compressed_out) * bit_width
+
+    # --- REUSE SIMULATION LOGIC TO ENSURE CONSISTENCY ---
+    dictionary = {ch: idx for idx, ch in enumerate(SYMBOLS)}
+    dict_size = len(dictionary)
+    w = ""
+    output = []
+    
+    # Updated Header with "Step"
+    history = [["Step", "Current w", "Next c", "New Entry", "New Index", "Output"]]
+    step_counter = 1
+
+    for c in text:
+        wc = w + c
+        if wc in dictionary:
+            w = wc
+        else:
+            if w:
+                # Added step_counter to the row
+                history.append([str(step_counter), w, c, wc, str(dict_size), str(dictionary[w])])
+                output.append(dictionary[w])
+                step_counter += 1
+            
+            dictionary[wc] = dict_size
+            dict_size += 1
+            w = c
+
+    if w:
+        # Added step_counter to the final EOF row
+        history.append([str(step_counter), w, "EOF", "-", "-", str(dictionary[w])])
+        output.append(dictionary[w])
+
+    bit_width = math.ceil(math.log2(len(dictionary)))
+    compressed_bits = len(output) * bit_width
     ratio = (1 - compressed_bits / original_bits) * 100
 
     elements.append(Paragraph(f"<b>Input Sequence (Length {len(text)}):</b>", styles['Heading3']))
@@ -155,23 +187,7 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
 
     elements.append(Paragraph("<b>Examiner Solution Key</b>", styles['Heading2']))
 
-    dictionary = {ch: idx for idx, ch in enumerate(SYMBOLS)}
-    dict_size = len(dictionary)
-    w = ""
-    history = [["Current w", "Next c", "New Entry", "Index", "Output"]]
-
-    for c in text:
-        wc = w + c
-        if wc in dictionary:
-            w = wc
-        else:
-            history.append([w, c, wc, str(dict_size), str(dictionary[w])])
-            dictionary[wc] = dict_size
-            dict_size += 1
-            w = c
-
-    history.append([w, "EOF", "-", "-", str(dictionary[w])])
-
+    # Table creation remains the same, but will now render 6 columns
     t_steps = Table(history)
     t_steps.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
@@ -184,8 +200,8 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
 
     stats = f"""
     <b>Final Statistics:</b><br/>
-    Dictionary Size: {final_dict_size}<br/>
-    Encoded Output: {compressed_out}<br/>
+    Dictionary Size: {len(dictionary)}<br/>
+    Encoded Output: {output}<br/>
     Original Size: {original_bits} bits<br/>
     Compressed Size: {compressed_bits} bits<br/>
     Compression Savings: {ratio:.1f}%
