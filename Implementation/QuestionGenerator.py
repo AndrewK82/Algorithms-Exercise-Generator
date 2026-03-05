@@ -184,7 +184,7 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
     w = ""
     output = []
 
-    history = [["Step", "Position", "Longest String", "Binary Encoding", "String Added", "Code Given"]]
+    history = [["Step", "Position in String", "Longest String in Dictionary", "Binary Encoding", "String Added", "Code Created"]]
 
     step_counter = 1
     w_start_pos = 1
@@ -245,7 +245,7 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
 
     ratio = (1 - total_compressed_bits / original_bits) * 100
 
-    elements.append(Paragraph(f"<b>Input Sequence (Length {len(text)}):</b>", styles['Heading3']))
+    elements.append(Paragraph(f"<b>Input Sequence:</b>", styles['Heading3']))
 
     t = Table([list(text)], colWidths=[20]*len(text))
 
@@ -259,11 +259,11 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
     elements.append(Spacer(1, 15))
 
     question_text = """
-    <b>Task Requirements:</b><br/><br/>
-    1. Show the step and position in the string.<br/>
-    2. Identify the longest matching string in the dictionary.<br/>
-    3. Provide the binary encoding using the minimum number of bits required for the <i>current</i> dictionary size.<br/>
-    4. Record the new string added to the dictionary and its integer code.
+    Using the LZW algorithm, compress the sequence from left to right. <br/><br/>
+
+    Start with the initial dictionary: A = 0, C = 1, T = 10, and G = 11 (Indices 0–3). <br/><br/>
+
+    At each step, identify the longest matching string in the dictionary and output its binary code. Form a new dictionary entry by appending the next symbol in the sequence to the current match, assigning it the next available integer index. Complete the table provided below.
     """
 
     elements.append(Paragraph(question_text, styles['BodyText']))
@@ -297,20 +297,21 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
         elements.append(Paragraph(stats, styles['BodyText']))
 
     else:
+        example_row = history[1]  # take first step from solution history
 
-        blank_rows = [[""]*6 for _ in range(len(history)-1)]
-        blank_table = [history[0]] + blank_rows
+        blank_rows = [[""]*6 for _ in range(len(history)-2)]  # remaining rows blank
+        blank_table = [history[0]] + [example_row] + blank_rows  # header + example + blanks
 
         t_blank = Table(blank_table)
 
         t_blank.setStyle(TableStyle([
             ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-            ('FONTSIZE', (0,0), (-1,-1), 9)
+            ('FONTSIZE', (0,0), (-1,-1), 9),
+            ('BACKGROUND', (0,1), (-1,1), colors.whitesmoke)  # highlight example row
         ]))
 
         elements.append(t_blank)
-
     doc.build(elements)
 
     return filename
