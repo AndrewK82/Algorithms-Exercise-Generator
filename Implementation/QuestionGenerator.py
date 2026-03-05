@@ -1,6 +1,8 @@
 import random
 import math
 import time
+import csv
+from collections import Counter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
@@ -17,6 +19,18 @@ SCALING_FACTORS = {
 }
 
 # ------------------------------------------------------------------
+# ENTROPY CALCULATION
+# ------------------------------------------------------------------
+def calculate_shannon_entropy(text):
+    counts = Counter(text)
+    length = len(text)
+    entropy = 0
+    for count in counts.values():
+        p = count / length
+        entropy -= p * math.log2(p)
+    return entropy
+
+# ------------------------------------------------------------------
 # DIFFICULTY CONTROL
 # ------------------------------------------------------------------
 def calculate_target_dict_size(length, entropy_type):
@@ -29,9 +43,10 @@ def calculate_target_dict_size(length, entropy_type):
 # ------------------------------------------------------------------
 def generate_smart_lzw_string(length, entropy_type):
     target_dict_size = calculate_target_dict_size(length, entropy_type)
-    start_time = time.time()
 
-    while time.time() - start_time < 5:
+    # attempt limit instead of time limit (more reproducible)
+    for _ in range(2000):
+
         if entropy_type == 'low_entropy':
             weights = [0.6, 0.2, 0.1, 0.1]
         else:
@@ -39,11 +54,17 @@ def generate_smart_lzw_string(length, entropy_type):
 
         text = "".join(random.choices(SYMBOLS, weights=weights, k=length))
         d_size, compressed = simulate_lzw(text)
+        entropy_value = calculate_shannon_entropy(text)
 
-        if abs(d_size - target_dict_size) <= 1 and len(compressed) < len(text):
-            return text, d_size, compressed
+        if (
+            abs(d_size - target_dict_size) <= 1
+            and len(compressed) < len(text)
+            and len(set(text)) >= 2  # avoid trivial sequences
+        ):
+            return text, d_size, compressed, entropy_value
 
-    return text, d_size, compressed
+    # fallback return
+    return text, d_size, compressed, entropy_value
 
 # ------------------------------------------------------------------
 # LZW SIMULATION
@@ -68,6 +89,30 @@ def simulate_lzw(text):
         output.append(dictionary[w])
 
     return dict_size, output
+
+# ------------------------------------------------------------------
+# LOGGING (FOR DISSERTATION ANALYSIS)
+# ------------------------------------------------------------------
+def log_question_data(filename, row):
+    file_exists = False
+    try:
+        with open(filename, 'r'):
+            file_exists = True
+    except FileNotFoundError:
+        pass
+
+    with open(filename, 'a', newline='') as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow([
+                "Question",
+                "Sequence",
+                "Entropy",
+                "Final_Dict_Size",
+                "Compressed_Length",
+                "Original_Length"
+            ])
+        writer.writerow(row)
 
 # ------------------------------------------------------------------
 # PDF GENERATION (EXAM PAPER)
@@ -98,10 +143,10 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
 
     question_text = f"""
     <b>Task Requirements:</b><br/><br/>
-    1. Trace the LZW algorithm.<br/>
-    2. Initial dictionary: A(0), C(1), T(2), G(3).<br/>
-    3. Show all dictionary insertions.<br/>
-    4. Compare ASCII vs LZW using {bit_width}-bit codes.
+    1. Show the value of w and c at each step.<br/>
+    2. Indicate when a new dictionary entry is added.<br/>
+    3. Record the output code each time output occurs.<br/>
+    4. Compare ASCII vs LZW using fixed-width {bit_width}-bit codes.
     """
     elements.append(Paragraph(question_text, styles['BodyText']))
     elements.append(Spacer(1, 25))
@@ -151,92 +196,11 @@ def generate_pdf_report(text, compressed_out, final_dict_size, filename="lzw_com
     return filename
 
 # ------------------------------------------------------------------
-# LaTeX GENERATION (EXAM PAPER)
-# ------------------------------------------------------------------
-def generate_latex_exam(text, compressed_out, final_dict_size, filename="lzw_exam.tex"):
-    bit_width = math.ceil(math.log2(final_dict_size))
-    original_bits = len(text) * 8
-    compressed_bits = len(compressed_out) * bit_width
-    ratio = (1 - compressed_bits / original_bits) * 100
-
-    dictionary = {ch: idx for idx, ch in enumerate(SYMBOLS)}
-    dict_size = len(dictionary)
-    w = ""
-    steps = []
-
-    for c in text:
-        wc = w + c
-        if wc in dictionary:
-            w = wc
-        else:
-            steps.append((w, c, wc, dict_size, dictionary[w]))
-            dictionary[wc] = dict_size
-            dict_size += 1
-            w = c
-    steps.append((w, "EOF", "-", "-", dictionary[w]))
-
-    latex = r"""\documentclass{article}
-\usepackage{geometry}
-\usepackage{array}
-\geometry{margin=1in}
-
-\begin{document}
-
-\section*{LZW Compression Challenge}
-
-\textbf{Input Sequence (Length """ + str(len(text)) + r"""):}
-
-\[
-""" + " \; ".join(text) + r"""
-\]
-
-\textbf{Task Requirements}
-\begin{enumerate}
-\item Trace the LZW algorithm.
-\item Initial dictionary: A(0), C(1), T(2), G(3).
-\item Show all dictionary insertions.
-\item Compare ASCII vs LZW using """ + str(bit_width) + r"""-bit codes.
-\end{enumerate}
-
-\section*{Examiner Solution Key}
-
-\begin{center}
-\begin{tabular}{|c|c|c|c|c|}
-\hline
-Current $w$ & Next $c$ & New Entry & Index & Output \\
-\hline
-"""
-
-    for row in steps:
-        latex += f"{row[0]} & {row[1]} & {row[2]} & {row[3]} & {row[4]} \\\\\n\\hline\n"
-
-    latex += r"""
-\end{tabular}
-\end{center}
-
-\section*{Final Statistics}
-\begin{itemize}
-\item Dictionary Size: """ + str(final_dict_size) + r"""
-\item Encoded Output: """ + str(compressed_out) + r"""
-\item Original Size: """ + str(original_bits) + r""" bits
-\item Compressed Size: """ + str(compressed_bits) + r""" bits
-\item Compression Savings: """ + f"{ratio:.1f}" + r"""\%
-\end{itemize}
-
-\end{document}
-"""
-
-    with open(filename, "w") as f:
-        f.write(latex)
-
-    return filename
-
-# ------------------------------------------------------------------
 # MAIN
 # ------------------------------------------------------------------
 
 def main():
-    print("--- LZW Question Generator (25 Questions Mode) ---")
+    print("--- LZW Question Generator ---")
 
     try:
         length = int(input("Enter string length (8–30): "))
@@ -248,26 +212,40 @@ def main():
         choice = input("Choice (1 or 2): ").strip()
         entropy = 'high_entropy' if choice == '1' else 'low_entropy'
 
+        num_questions = int(input("How many questions to generate? "))
+        num_questions = max(1, num_questions)
+
     except ValueError:
         length = 15
         entropy = 'high_entropy'
+        num_questions = 5
 
-    for i in range(1, 26):
+    for i in range(1, num_questions + 1):
         print(f"\n--- Generating Question {i} ---")
 
-        text, d_size, out = generate_smart_lzw_string(length, entropy)
+        text, d_size, out, entropy_value = generate_smart_lzw_string(length, entropy)
 
         print(f"Sequence: {text}")
         print(f"Final Dictionary Size: {d_size}")
+        print(f"Shannon Entropy: {round(entropy_value,3)}")
 
         pdf_name = f"lzw_compression_{i}.pdf"
-        tex_name = f"lzw_exam_{i}.tex"
 
         generate_pdf_report(text, out, d_size, filename=pdf_name)
-        generate_latex_exam(text, out, d_size, filename=tex_name)
+
+        log_question_data(
+            "question_metrics.csv",
+            [
+                i,
+                text,
+                round(entropy_value, 3),
+                d_size,
+                len(out),
+                len(text)
+            ]
+        )
 
         print(f"PDF generated: {pdf_name}")
-        print(f"LaTeX generated: {tex_name}")
 
 if __name__ == "__main__":
     main()
