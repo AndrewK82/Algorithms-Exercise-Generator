@@ -197,6 +197,7 @@ def generate_latex_report(text, compressed_out, final_dict_size, filename="lzw_c
     latex.append(r"Start with the initial dictionary: A = 00, C = 01, G = 10, and T = 11 (Indices 0--3). \\[1.5em]")
     latex.append(r"At each step, identify the longest matching string in the dictionary and output its binary code. Form a new dictionary entry by appending the next symbol in the sequence to the current match, assigning it the next available integer index. Complete the table provided below.")
     latex.append(r"\vspace{3em}")
+    latex.append(r"\par")
 
     if include_solution:
         latex.append(r"\noindent {\Large \textbf{Examiner Solution Key}}")
