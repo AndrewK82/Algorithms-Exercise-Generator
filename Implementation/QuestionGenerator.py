@@ -151,7 +151,8 @@ def generate_latex_report(text, compressed_out, final_dict_size, filename="lzw_c
                 current_bit_width = max(1, math.ceil(math.log2(dict_size)))
                 binary_code = format(dictionary[w], f'0{current_bit_width}b')
                 total_compressed_bits += current_bit_width
-                history.append([str(step_counter), str(w_start_pos), w, binary_code, wc, str(dict_size)])
+                # Row columns: Step, Position, Match, k, Binary Encoding, String Added, Code Created
+                history.append([str(step_counter), str(w_start_pos), w, str(current_bit_width), binary_code, wc, str(dict_size)])
                 output.append(dictionary[w])
                 step_counter += 1
             dictionary[wc] = dict_size
@@ -163,7 +164,7 @@ def generate_latex_report(text, compressed_out, final_dict_size, filename="lzw_c
         current_bit_width = max(1, math.ceil(math.log2(dict_size)))
         binary_code = format(dictionary[w], f'0{current_bit_width}b')
         total_compressed_bits += current_bit_width
-        history.append([str(step_counter), str(w_start_pos), w, binary_code, "-", "-"])
+        history.append([str(step_counter), str(w_start_pos), w, str(current_bit_width), binary_code, "-", "-"])
         output.append(dictionary[w])
 
     ratio = (1 - total_compressed_bits / original_bits) * 100
@@ -205,9 +206,9 @@ def generate_latex_report(text, compressed_out, final_dict_size, filename="lzw_c
     latex.append(r"\small")
     latex.append(r"\renewcommand{\arraystretch}{1.4}")
     latex.append(r"\arrayrulecolor{gray}")
-    latex.append(r"\begin{tabular}{|c|c|c|c|c|c|}")
+    latex.append(r"\begin{tabular}{|c|c|c|c|c|c|c|}")
     latex.append(r"\hline")
-    latex.append(r"\rowcolor{lightgray} Step & Position in String & Longest String in Dictionary & Binary Encoding & String Added & Code Created \\")
+    latex.append(r"\rowcolor{lightgray} Step & Position in String & Longest String in Dictionary & k & Binary Encoding & String Added & Code Created \\")
     latex.append(r"\hline")
 
     if include_solution:
@@ -215,10 +216,10 @@ def generate_latex_report(text, compressed_out, final_dict_size, filename="lzw_c
             latex.append(" & ".join(row) + r" \\ \hline")
     else:
         if history:
-             latex.append(r"\rowcolor{white!92!black} " + " & ".join(history[0]) + r" \\ \hline")
+            latex.append(r"\rowcolor{white!92!black} " + " & ".join(history[0]) + r" \\ \hline")
         # 5 extra decoy rows
         for _ in range(len(history) + 4):
-            latex.append(r" & & & & & \\ \hline")
+            latex.append(r" & & & & & & \\ \hline")
 
     latex.append(r"\end{tabular}")
     latex.append(r"\arrayrulecolor{black}")
