@@ -15,6 +15,12 @@ SCALING_FACTORS = {
     'high_entropy': 0.7
 }
 
+# Target entropy ranges for each profile
+TARGET_ENTROPY = {
+    'high_entropy': (1.8, 2.0),
+    'low_entropy':  (1.2, 1.6)
+}
+
 ANSWERS_FOLDER = "Answers"
 QUESTIONS_FOLDER = "Questions"
 
@@ -33,7 +39,7 @@ def clear_output_folders():
             os.makedirs(folder)
 
 # ------------------------------------------------------------------
-# ENTROPY CALCULATION
+# ENTROPY CALCULATION & WEIGHTING
 # ------------------------------------------------------------------
 
 def calculate_shannon_entropy(text):
@@ -44,6 +50,28 @@ def calculate_shannon_entropy(text):
         p = count / length
         entropy -= p * math.log2(p)
     return entropy
+
+def adaptive_weights(counts, entropy_type):
+    total = sum(counts.values())
+
+    if entropy_type == 'high_entropy':
+        target = {s: 0.25 for s in SYMBOLS}
+    else:
+        target = {'A': 0.6, 'C': 0.2, 'G': 0.1, 'T': 0.1}
+
+    if total == 0:
+        return [target[s] for s in SYMBOLS]
+
+    weights = []
+    for s in SYMBOLS:
+        current_freq = counts[s] / total
+        deficit = target[s] - current_freq
+        adjusted = max(0.05, target[s] + deficit)
+        weights.append(adjusted)
+
+    # Normalising weights to sum up to 1
+    total_w = sum(weights)
+    return [w / total_w for w in weights]
 
 def calculate_target_dict_size(length, entropy_type):
     base_size = len(SYMBOLS)
@@ -79,20 +107,28 @@ def simulate_lzw(text):
 def generate_smart_lzw_string(length, entropy_type):
     target_dict_size = calculate_target_dict_size(length, entropy_type)
     target_steps = calculate_target_steps(length)
+    entropy_min, entropy_max = TARGET_ENTROPY[entropy_type]
     
     # Max allowed consecutive characters to keep it looking "clean"
     max_streak = 2 if entropy_type == 'high_entropy' else 3
 
     for _ in range(100000):
-        if entropy_type == 'low_entropy':
-            weights = [0.6, 0.2, 0.1, 0.1]
-        else:
-            weights = [0.25, 0.25, 0.25, 0.25]
+        text_list = []
+        counts = Counter()
 
-        text_list = random.sample(SYMBOLS, len(SYMBOLS))
-        text_list += random.choices(SYMBOLS, weights=weights, k=length-4)
-        random.shuffle(text_list)
+        # Build characters one at a time, adjusting weights
+        # based on current frequencies to steer toward target entropy
+        for _ in range(length):
+            w = adaptive_weights(counts, entropy_type)
+            char = random.choices(SYMBOLS, weights=w, k=1)[0]
+            text_list.append(char)
+            counts[char] += 1
+
         text = "".join(text_list)
+
+        # Reject if not all symbols are present in the final string
+        if len(set(text)) < len(SYMBOLS):
+            continue
 
         # Reject sequences with long "ugly" streaks
         has_streak = any(text[i:i+max_streak+1] == text[i]*(max_streak+1) for i in range(len(text)-max_streak))
@@ -105,7 +141,8 @@ def generate_smart_lzw_string(length, entropy_type):
 
         if (abs(d_size - target_dict_size) <= 1
             and abs(steps - target_steps) <= 1
-            and len(compressed) < len(text)):
+            and len(compressed) < len(text)
+            and entropy_min <= entropy_value <= entropy_max):
             return text, d_size, compressed, entropy_value
 
     return text, d_size, compressed, entropy_value
@@ -226,14 +263,6 @@ def generate_latex_report(text, compressed_out, final_dict_size, filename="lzw_c
     latex.append(r"\arrayrulecolor{black}")
     latex.append(r"\end{center}")
     latex.append(r"\vspace{1em}")
-
-    # if include_solution:
-    #     latex.append(r"\noindent \textbf{Final Statistics:}\\")
-    #     latex.append(f"Dictionary Size: {len(dictionary)}\\")
-    #     latex.append(f"Encoded Output: {output}\\")
-    #     latex.append(f"Original Size: {original_bits} bits\\")
-    #     latex.append(f"Compressed Size: {total_compressed_bits} bits\\")
-    #     latex.append(f"Compression Savings: {ratio:.1f}\\%")
 
     latex.append(r"\end{document}")
 
