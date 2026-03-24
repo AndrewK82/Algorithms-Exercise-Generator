@@ -1,17 +1,3 @@
-"""
-LZW Decompression Question Generator
-=====================================
-Matches the exact table format from the lecture slide:
-
-  step | position in file | old string | code from dictionary | string | add to dictionary | code#
-
-Students are given the binary bitstream and must fill in the table,
-recovering the original text by working through decompression manually.
-
-Alphabet: A=00, C=01, G=10, T=11  (2-bit initial codes)
-Variable-width codes: bit-width grows as dictionary grows.
-"""
-
 import random
 import math
 import csv
@@ -31,7 +17,7 @@ SCALING_FACTORS = {
     'high_entropy': 0.7
 }
 
-STEP_FACTORS = {
+STEP_FACTORS = { # the step count you want to compress to - 0.65 generally seen across tutorials and exam like questions
     'high_entropy': 0.65,
     'low_entropy':  0.65
 }
@@ -58,10 +44,6 @@ def clear_output_folders():
         else:
             os.makedirs(folder)
 
-# ------------------------------------------------------------------
-# BIT-WIDTH HELPER
-# ------------------------------------------------------------------
-
 def bit_width(dict_size):
     return max(INIT_BITS, math.ceil(math.log2(max(dict_size, 2))))
 
@@ -80,15 +62,6 @@ def calculate_shannon_entropy(text):
 
 
 def calculate_input_variance(text):
-    """
-    Measures how visually varied the input string appears to a student.
-    Counts distinct adjacent character pairs (bigrams) normalised by the
-    maximum possible number of distinct bigrams for the alphabet.
-    A higher score means the string looks more irregular and unpredictable.
-    A lower score means the string looks patterned or repetitive.
-    Independent of Shannon entropy: two strings with similar entropy
-    can differ substantially on this measure.
-    """
     bigrams = set(text[i] + text[i+1] for i in range(len(text) - 1))
     return len(bigrams) / (len(SYMBOLS) ** 2)
 
@@ -104,14 +77,6 @@ def calculate_target_steps(length, entropy_type):
 
 
 def has_special_case(text):
-    """
-    Checks whether compressing this string produces the LZW decompression
-    special case: where a code is encountered before its dictionary entry
-    is fully defined. This occurs when the encoder emits a code for a string
-    that was added in the immediately preceding step.
-    The decoder resolves this by taking the previous output and appending
-    its own first character.
-    """
     dictionary = dict(INIT_DICT)
     dict_size  = len(dictionary)
     w = ""
@@ -131,7 +96,7 @@ def has_special_case(text):
     return False
 
 # ------------------------------------------------------------------
-# LZW COMPRESSION -> produces the binary stream and step trace
+# LZW COMPRESSION -> produces steps to be traced back for decompression
 # ------------------------------------------------------------------
 
 def compress_trace(text):
@@ -211,7 +176,7 @@ def generate_sequence(target_length=14, entropy_type='high_entropy', seen=None, 
         weights = [0.65, 0.18, 0.10, 0.07]
 
     for _ in range(100000):
-        # Seed with one of each symbol to guarantee full alphabet coverage
+        # Ensuring one of each symbol to guarantee full alphabet coverage - initial question dictionary coding won't make sense otherwise
         text_list  = random.sample(SYMBOLS, len(SYMBOLS))
         text_list += random.choices(SYMBOLS, weights=weights, k=target_length - len(SYMBOLS))
         random.shuffle(text_list)
@@ -314,7 +279,7 @@ def build_latex(text, bitstream, total_bits, steps, filename, include_solution=T
         return (f" {s['step']} & {s['position']} & {s['old_string'].replace('-', '--')} & "
                 f"\\texttt{{{s['code_bits']}}} & {s['string']} & {add} & {code} \\\\ \\hline")
 
-    # Step 0 always given as a worked example
+    # Step 0 always given as a worked example to help students
     L.append(r"\rowcolor{white!92!black} " + latex_row(steps[0]).lstrip())
 
     for s in steps[1:]:

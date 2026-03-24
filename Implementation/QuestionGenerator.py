@@ -15,7 +15,7 @@ SCALING_FACTORS = {
     'high_entropy': 0.7
 }
 
-STEP_FACTORS = {
+STEP_FACTORS = { # the step count you want to compress to - 0.65 generally seen across tutorials and exam like questions
     'high_entropy': 0.65,
     'low_entropy':  0.65
 }
@@ -56,7 +56,7 @@ def calculate_shannon_entropy(text):
         entropy -= p * math.log2(p)
     return entropy
 
-def calculate_match_diversity(text):
+def calculate_input_variance(text):
     bigrams = set(text[i] + text[i+1] for i in range(len(text) - 1))
     return len(bigrams) / (len(SYMBOLS) ** 2)
 
@@ -137,10 +137,10 @@ def generate_smart_lzw_string(length, entropy_type, seen=None):
                 and len(compressed) < len(text)):
             
             entropy_value = calculate_shannon_entropy(text)
-            match_diversity = calculate_match_diversity(text)
-            return text, d_size, compressed, entropy_value, match_diversity
+            calculate_input_variance = calculate_input_variance(text)
+            return text, d_size, compressed, entropy_value, calculate_input_variance
 
-    # If it fails, explicitly raise an error instead of returning bad data
+    # If it fails it raise an error instead of returning bad data
     raise ValueError(f"Failed to generate a valid sequence for length {length} after 100,000 attempts. Try adjusting constraints.")
 
 def log_question_data(filename, row):
@@ -157,7 +157,7 @@ def log_question_data(filename, row):
             writer.writerow([
                 "Question", "Sequence", "Entropy", "Final_Dict_Size",
                 "Compressed_Length", "Original_Length", "Steps",
-                "Match_Diversity"
+                "Input Variance"
             ])
         writer.writerow(row)
 
@@ -249,7 +249,7 @@ def generate_latex_report(text, compressed_out, final_dict_size, filename="lzw_c
     else:
         if history:
             latex.append(r"\rowcolor{white!92!black} " + " & ".join(history[0]) + r" \\ \hline")
-        # Ensure 7 columns of blanks are printed for the empty student table
+        # Adding blank columns to question sheets
         for _ in range(len(history) + 4):
             latex.append(r" & & & & & & \\ \hline")
 
@@ -293,7 +293,7 @@ def main():
         except ValueError as e:
             print(f"  Error: {e}")
             print("  Attempting again with a new random seed...")
-            continue # Try again without incrementing the question counter
+            continue 
 
         seen.add(text)
 
