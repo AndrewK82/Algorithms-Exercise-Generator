@@ -15,12 +15,6 @@ SCALING_FACTORS = {
     'high_entropy': 0.7
 }
 
-# Target entropy ranges for each profile
-TARGET_ENTROPY = {
-    'high_entropy': (1.8, 2.0),
-    'low_entropy':  (1.2, 1.6)
-}
-
 ANSWERS_FOLDER = "Answers"
 QUESTIONS_FOLDER = "Questions"
 
@@ -51,32 +45,12 @@ def calculate_shannon_entropy(text):
         entropy -= p * math.log2(p)
     return entropy
 
-def adaptive_weights(counts, entropy_type):
-    total = sum(counts.values())
-
-    if entropy_type == 'high_entropy':
-        target = {s: 0.25 for s in SYMBOLS}
-    else:
-        target = {'A': 0.6, 'C': 0.2, 'G': 0.1, 'T': 0.1}
-
-    if total == 0:
-        return [target[s] for s in SYMBOLS]
-
-    weights = []
-    for s in SYMBOLS:
-        current_freq = counts[s] / total
-        deficit = target[s] - current_freq
-        adjusted = max(0.05, target[s] + deficit)
-        weights.append(adjusted)
-
-    # Normalising weights to sum up to 1
-    total_w = sum(weights)
-    return [w / total_w for w in weights]
 
 def calculate_target_dict_size(length, entropy_type):
     base_size = len(SYMBOLS)
     growth = int(length * SCALING_FACTORS[entropy_type])
     return base_size + max(3, growth)
+
 
 def calculate_target_steps(length):
     return max(4, int(length * 0.65))
@@ -86,10 +60,12 @@ def calculate_target_steps(length):
 # ------------------------------------------------------------------
 
 def simulate_lzw(text):
+    """Simulate LZW compression, returning dict size, output codes, and match sequence."""
     dictionary = {ch: idx for idx, ch in enumerate(SYMBOLS)}
     dict_size = len(dictionary)
     w = ""
     output = []
+    matches = []
     for c in text:
         wc = w + c
         if wc in dictionary:
@@ -97,55 +73,71 @@ def simulate_lzw(text):
         else:
             if w:
                 output.append(dictionary[w])
+                matches.append(w)
             dictionary[wc] = dict_size
             dict_size += 1
             w = c
     if w:
         output.append(dictionary[w])
-    return dict_size, output
+        matches.append(w)
+    return dict_size, output, matches
+
+
+def calculate_execution_step_variance(matches):
+    if len(matches) < 2:
+        return 0.0
+    distinct_pairs = set(
+        (matches[i], matches[i + 1])
+        for i in range(len(matches) - 1)
+    )
+    return len(distinct_pairs) / (len(matches) ** 2)
+
+# ------------------------------------------------------------------
+# STRING GENERATION
+# ------------------------------------------------------------------
 
 def generate_smart_lzw_string(length, entropy_type):
     target_dict_size = calculate_target_dict_size(length, entropy_type)
     target_steps = calculate_target_steps(length)
-    entropy_min, entropy_max = TARGET_ENTROPY[entropy_type]
-    
+
     # Max allowed consecutive characters to keep it looking "clean"
     max_streak = 2 if entropy_type == 'high_entropy' else 3
 
+    # Character weights by profile
+    # High entropy: uniform distribution targets maximum Shannon entropy
+    # Low entropy: skewed distribution produces one dominant character
+    if entropy_type == 'high_entropy':
+        weights = [0.25, 0.25, 0.25, 0.25]
+    else:
+        weights = [0.6, 0.2, 0.1, 0.1]
+
     for _ in range(100000):
-        text_list = []
-        counts = Counter()
-
-        # Build characters one at a time, adjusting weights
-        # based on current frequencies to steer toward target entropy
-        for _ in range(length):
-            w = adaptive_weights(counts, entropy_type)
-            char = random.choices(SYMBOLS, weights=w, k=1)[0]
-            text_list.append(char)
-            counts[char] += 1
-
+        # Seed with one of each symbol to guarantee full alphabet coverage
+        text_list = random.sample(SYMBOLS, len(SYMBOLS))
+        text_list += random.choices(SYMBOLS, weights=weights, k=length - 4)
+        random.shuffle(text_list)
         text = "".join(text_list)
 
-        # Reject if not all symbols are present in the final string
-        if len(set(text)) < len(SYMBOLS):
-            continue
-
-        # Reject sequences with long "ugly" streaks
-        has_streak = any(text[i:i+max_streak+1] == text[i]*(max_streak+1) for i in range(len(text)-max_streak))
+        # Reject sequences with long identical-character runs
+        has_streak = any(
+            text[i:i+max_streak+1] == text[i]*(max_streak+1)
+            for i in range(len(text)-max_streak)
+        )
         if has_streak:
             continue
 
-        d_size, compressed = simulate_lzw(text)
+        d_size, compressed, matches = simulate_lzw(text)
         entropy_value = calculate_shannon_entropy(text)
+        exec_variance = calculate_execution_step_variance(matches)
         steps = len(compressed)
 
         if (abs(d_size - target_dict_size) <= 1
-            and abs(steps - target_steps) <= 1
-            and len(compressed) < len(text)
-            and entropy_min <= entropy_value <= entropy_max):
-            return text, d_size, compressed, entropy_value
+                and abs(steps - target_steps) <= 1
+                and len(compressed) < len(text)):
+            return text, d_size, compressed, entropy_value, exec_variance
 
-    return text, d_size, compressed, entropy_value
+    return text, d_size, compressed, calculate_shannon_entropy(text), calculate_execution_step_variance(matches)
+
 
 def log_question_data(filename, row):
     file_exists = False
@@ -160,7 +152,8 @@ def log_question_data(filename, row):
         if not file_exists:
             writer.writerow([
                 "Question", "Sequence", "Entropy", "Final_Dict_Size",
-                "Compressed_Length", "Original_Length", "Steps"
+                "Compressed_Length", "Original_Length", "Steps",
+                "Execution_Step_Variance"
             ])
         writer.writerow(row)
 
@@ -188,7 +181,6 @@ def generate_latex_report(text, compressed_out, final_dict_size, filename="lzw_c
                 current_bit_width = max(1, math.ceil(math.log2(dict_size)))
                 binary_code = format(dictionary[w], f'0{current_bit_width}b')
                 total_compressed_bits += current_bit_width
-                # Row columns: Step, Position, Match, k, Binary Encoding, String Added, Code Created
                 history.append([str(step_counter), str(w_start_pos), w, str(current_bit_width), binary_code, wc, str(dict_size)])
                 output.append(dictionary[w])
                 step_counter += 1
@@ -203,8 +195,6 @@ def generate_latex_report(text, compressed_out, final_dict_size, filename="lzw_c
         total_compressed_bits += current_bit_width
         history.append([str(step_counter), str(w_start_pos), w, str(current_bit_width), binary_code, "-", "-"])
         output.append(dictionary[w])
-
-    ratio = (1 - total_compressed_bits / original_bits) * 100
 
     latex = []
     latex.append(r"\documentclass[11pt]{article}")
@@ -255,7 +245,6 @@ def generate_latex_report(text, compressed_out, final_dict_size, filename="lzw_c
     else:
         if history:
             latex.append(r"\rowcolor{white!92!black} " + " & ".join(history[0]) + r" \\ \hline")
-        # 5 extra decoy rows
         for _ in range(len(history) + 4):
             latex.append(r" & & & & & & \\ \hline")
 
@@ -263,7 +252,6 @@ def generate_latex_report(text, compressed_out, final_dict_size, filename="lzw_c
     latex.append(r"\arrayrulecolor{black}")
     latex.append(r"\end{center}")
     latex.append(r"\vspace{1em}")
-
     latex.append(r"\end{document}")
 
     with open(filename, "w") as f:
@@ -275,7 +263,7 @@ def main():
     clear_output_folders()
     print("--- LZW LaTeX Question Generator ---")
     try:
-        length = int(input("Enter string length (8–30): "))
+        length = int(input("Enter string length (8-30): "))
         length = max(8, min(length, 30))
         print("Select Complexity Profile:\n1. High Entropy\n2. Low Entropy")
         choice = input("Choice (1 or 2): ").strip()
@@ -287,18 +275,27 @@ def main():
 
     for i in range(1, num_questions + 1):
         print(f"\n--- Generating Question {i} ---")
-        text, d_size, out, entropy_value = generate_smart_lzw_string(length, entropy)
-        
+        text, d_size, out, entropy_value, exec_variance = generate_smart_lzw_string(length, entropy)
+
         answer_tex = os.path.join(ANSWERS_FOLDER, f"lzw_answer_{i}.tex")
         question_tex = os.path.join(QUESTIONS_FOLDER, f"lzw_question_{i}.tex")
 
         generate_latex_report(text, out, d_size, filename=answer_tex, include_solution=True)
         generate_latex_report(text, out, d_size, filename=question_tex, include_solution=False)
 
-        log_question_data("question_metrics.csv", [i, text, round(entropy_value, 3), d_size, len(out), len(text), len(out)])
-        
-        print(f"Answer File: {answer_tex}")
-        print(f"Question File: {question_tex}")
+        log_question_data("question_metrics.csv", [
+            i, text, round(entropy_value, 3), d_size,
+            len(out), len(text), len(out), round(exec_variance, 3)
+        ])
+
+        print(f"  String:             {text}")
+        print(f"  Entropy:            {entropy_value:.3f} bits")
+        print(f"  Execution Step Variance: {exec_variance:.3f}")
+        print(f"  Steps:              {len(out)}")
+        print(f"  Dict size:          {d_size}")
+        print(f"  Answer File:        {answer_tex}")
+        print(f"  Question File:      {question_tex}")
+
 
 if __name__ == "__main__":
     main()
