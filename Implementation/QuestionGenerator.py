@@ -17,11 +17,10 @@ SCALING_FACTORS = {
 
 STEP_FACTORS = {
     'high_entropy': 0.65,
-    'low_entropy':  0.50
+    'low_entropy':  0.65
 }
 
-# Acceptance tolerance — low entropy needs more slack as skewed
-# distributions make simultaneous targets harder to hit
+# Acceptance tolerance
 TOLERANCES = {
     'high_entropy': 1,
     'low_entropy':  3
@@ -45,7 +44,7 @@ def clear_output_folders():
             os.makedirs(folder)
 
 # ------------------------------------------------------------------
-# ENTROPY CALCULATION
+# METRICS CALCULATION
 # ------------------------------------------------------------------
 
 def calculate_shannon_entropy(text):
@@ -57,12 +56,14 @@ def calculate_shannon_entropy(text):
         entropy -= p * math.log2(p)
     return entropy
 
+def calculate_match_diversity(text):
+    bigrams = set(text[i] + text[i+1] for i in range(len(text) - 1))
+    return len(bigrams) / (len(SYMBOLS) ** 2)
 
 def calculate_target_dict_size(length, entropy_type):
     base_size = len(SYMBOLS)
     growth = int(length * SCALING_FACTORS[entropy_type])
     return base_size + max(3, growth)
-
 
 def calculate_target_steps(length, entropy_type):
     return max(4, int(length * STEP_FACTORS[entropy_type]))
@@ -72,7 +73,6 @@ def calculate_target_steps(length, entropy_type):
 # ------------------------------------------------------------------
 
 def simulate_lzw(text):
-    """Simulate LZW compression, returning dict size, output codes, and match sequence."""
     dictionary = {ch: idx for idx, ch in enumerate(SYMBOLS)}
     dict_size = len(dictionary)
     w = ""
@@ -94,22 +94,6 @@ def simulate_lzw(text):
         matches.append(w)
     return dict_size, output, matches
 
-
-def calculate_execution_step_variance(matches):
-    """
-    Measures how varied the dictionary matches are across execution steps.
-    Counts distinct adjacent match pairs normalised by total possible pairs.
-    Higher score = more varied execution = more interesting question.
-    Logged as a diagnostic metric alongside each generated exercise.
-    """
-    if len(matches) < 2:
-        return 0.0
-    distinct_pairs = set(
-        (matches[i], matches[i + 1])
-        for i in range(len(matches) - 1)
-    )
-    return len(distinct_pairs) / (len(matches) ** 2)
-
 # ------------------------------------------------------------------
 # STRING GENERATION
 # ------------------------------------------------------------------
@@ -117,31 +101,27 @@ def calculate_execution_step_variance(matches):
 def generate_smart_lzw_string(length, entropy_type, seen=None):
     target_dict_size = calculate_target_dict_size(length, entropy_type)
     target_steps = calculate_target_steps(length, entropy_type)
-    tolerance = TOLERANCES[entropy_type]
+    base_tolerance = TOLERANCES[entropy_type]
 
-    # Max allowed consecutive characters to keep it looking "clean"
     max_streak = 2 if entropy_type == 'high_entropy' else 3
 
-    # Character weights by profile:
-    # High entropy: uniform distribution — targets maximum Shannon entropy
-    # Low entropy: skewed but not extreme — keeps variety across a batch
     if entropy_type == 'high_entropy':
         weights = [0.25, 0.25, 0.25, 0.25]
     else:
         weights = [0.65, 0.18, 0.10, 0.07]
 
-    for _ in range(100000):
-        # Seed with one of each symbol to guarantee full alphabet coverage
+    for attempt in range(1, 100001):
+        # Dynamically widen tolerance slightly if we are struggling to find a match
+        current_tolerance = base_tolerance + (attempt // 25000)
+
         text_list = random.sample(SYMBOLS, len(SYMBOLS))
         text_list += random.choices(SYMBOLS, weights=weights, k=length - 4)
         random.shuffle(text_list)
         text = "".join(text_list)
 
-        # Skip if this string has already been generated in this batch
-        if seen is not None and text in seen:
+        if seen and text in seen:
             continue
 
-        # Reject sequences with long identical-character runs
         has_streak = any(
             text[i:i+max_streak+1] == text[i]*(max_streak+1)
             for i in range(len(text)-max_streak)
@@ -150,17 +130,18 @@ def generate_smart_lzw_string(length, entropy_type, seen=None):
             continue
 
         d_size, compressed, matches = simulate_lzw(text)
-        entropy_value = calculate_shannon_entropy(text)
-        exec_variance = calculate_execution_step_variance(matches)
         steps = len(compressed)
 
-        if (abs(d_size - target_dict_size) <= tolerance
-                and abs(steps - target_steps) <= tolerance
+        if (abs(d_size - target_dict_size) <= current_tolerance
+                and abs(steps - target_steps) <= current_tolerance
                 and len(compressed) < len(text)):
-            return text, d_size, compressed, entropy_value, exec_variance
+            
+            entropy_value = calculate_shannon_entropy(text)
+            match_diversity = calculate_match_diversity(text)
+            return text, d_size, compressed, entropy_value, match_diversity
 
-    return text, d_size, compressed, calculate_shannon_entropy(text), calculate_execution_step_variance(matches)
-
+    # If it fails, explicitly raise an error instead of returning bad data
+    raise ValueError(f"Failed to generate a valid sequence for length {length} after 100,000 attempts. Try adjusting constraints.")
 
 def log_question_data(filename, row):
     file_exists = False
@@ -176,7 +157,7 @@ def log_question_data(filename, row):
             writer.writerow([
                 "Question", "Sequence", "Entropy", "Final_Dict_Size",
                 "Compressed_Length", "Original_Length", "Steps",
-                "Execution_Step_Variance"
+                "Match_Diversity"
             ])
         writer.writerow(row)
 
@@ -268,6 +249,7 @@ def generate_latex_report(text, compressed_out, final_dict_size, filename="lzw_c
     else:
         if history:
             latex.append(r"\rowcolor{white!92!black} " + " & ".join(history[0]) + r" \\ \hline")
+        # Ensure 7 columns of blanks are printed for the empty student table
         for _ in range(len(history) + 4):
             latex.append(r" & & & & & & \\ \hline")
 
@@ -282,6 +264,9 @@ def generate_latex_report(text, compressed_out, final_dict_size, filename="lzw_c
 
     return filename
 
+# ------------------------------------------------------------------
+# MAIN
+# ------------------------------------------------------------------
 
 def main():
     clear_output_folders()
@@ -301,14 +286,15 @@ def main():
     i = 1
     while i <= num_questions:
         print(f"\n--- Generating Question {i} ---")
-        text, d_size, out, entropy_value, exec_variance = generate_smart_lzw_string(
-            length, entropy, seen=seen
-        )
+        try:
+            text, d_size, out, entropy_value, match_diversity = generate_smart_lzw_string(
+                length, entropy, seen=seen
+            )
+        except ValueError as e:
+            print(f"  Error: {e}")
+            print("  Attempting again with a new random seed...")
+            continue # Try again without incrementing the question counter
 
-        # Skip duplicates — can happen when sample space is small
-        if text in seen:
-            print(f"  Duplicate detected, retrying...")
-            continue
         seen.add(text)
 
         answer_tex = os.path.join(ANSWERS_FOLDER, f"lzw_answer_{i}.tex")
@@ -319,19 +305,18 @@ def main():
 
         log_question_data("question_metrics.csv", [
             i, text, round(entropy_value, 3), d_size,
-            len(out), len(text), len(out), round(exec_variance, 3)
+            len(out), len(text), len(out), round(match_diversity, 3)
         ])
 
         print(f"  String:             {text}")
         print(f"  Entropy:            {entropy_value:.3f} bits")
-        print(f"  Execution Step Variance: {exec_variance:.3f}")
+        print(f"  Match Diversity:    {match_diversity:.3f}")
         print(f"  Steps:              {len(out)}")
         print(f"  Dict size:          {d_size}")
         print(f"  Answer File:        {answer_tex}")
         print(f"  Question File:      {question_tex}")
 
         i += 1
-
 
 if __name__ == "__main__":
     main()
