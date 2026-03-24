@@ -15,6 +15,18 @@ SCALING_FACTORS = {
     'high_entropy': 0.7
 }
 
+STEP_FACTORS = {
+    'high_entropy': 0.65,
+    'low_entropy':  0.50
+}
+
+# Acceptance tolerance — low entropy needs more slack as skewed
+# distributions make simultaneous targets harder to hit
+TOLERANCES = {
+    'high_entropy': 1,
+    'low_entropy':  3
+}
+
 ANSWERS_FOLDER = "Answers"
 QUESTIONS_FOLDER = "Questions"
 
@@ -33,7 +45,7 @@ def clear_output_folders():
             os.makedirs(folder)
 
 # ------------------------------------------------------------------
-# ENTROPY CALCULATION & WEIGHTING
+# ENTROPY CALCULATION
 # ------------------------------------------------------------------
 
 def calculate_shannon_entropy(text):
@@ -52,8 +64,8 @@ def calculate_target_dict_size(length, entropy_type):
     return base_size + max(3, growth)
 
 
-def calculate_target_steps(length):
-    return max(4, int(length * 0.65))
+def calculate_target_steps(length, entropy_type):
+    return max(4, int(length * STEP_FACTORS[entropy_type]))
 
 # ------------------------------------------------------------------
 # LZW SIMULATION
@@ -84,6 +96,12 @@ def simulate_lzw(text):
 
 
 def calculate_execution_step_variance(matches):
+    """
+    Measures how varied the dictionary matches are across execution steps.
+    Counts distinct adjacent match pairs normalised by total possible pairs.
+    Higher score = more varied execution = more interesting question.
+    Logged as a diagnostic metric alongside each generated exercise.
+    """
     if len(matches) < 2:
         return 0.0
     distinct_pairs = set(
@@ -96,20 +114,21 @@ def calculate_execution_step_variance(matches):
 # STRING GENERATION
 # ------------------------------------------------------------------
 
-def generate_smart_lzw_string(length, entropy_type):
+def generate_smart_lzw_string(length, entropy_type, seen=None):
     target_dict_size = calculate_target_dict_size(length, entropy_type)
-    target_steps = calculate_target_steps(length)
+    target_steps = calculate_target_steps(length, entropy_type)
+    tolerance = TOLERANCES[entropy_type]
 
     # Max allowed consecutive characters to keep it looking "clean"
     max_streak = 2 if entropy_type == 'high_entropy' else 3
 
-    # Character weights by profile
-    # High entropy: uniform distribution targets maximum Shannon entropy
-    # Low entropy: skewed distribution produces one dominant character
+    # Character weights by profile:
+    # High entropy: uniform distribution — targets maximum Shannon entropy
+    # Low entropy: skewed but not extreme — keeps variety across a batch
     if entropy_type == 'high_entropy':
         weights = [0.25, 0.25, 0.25, 0.25]
     else:
-        weights = [0.6, 0.2, 0.1, 0.1]
+        weights = [0.65, 0.18, 0.10, 0.07]
 
     for _ in range(100000):
         # Seed with one of each symbol to guarantee full alphabet coverage
@@ -117,6 +136,10 @@ def generate_smart_lzw_string(length, entropy_type):
         text_list += random.choices(SYMBOLS, weights=weights, k=length - 4)
         random.shuffle(text_list)
         text = "".join(text_list)
+
+        # Skip if this string has already been generated in this batch
+        if seen is not None and text in seen:
+            continue
 
         # Reject sequences with long identical-character runs
         has_streak = any(
@@ -131,8 +154,8 @@ def generate_smart_lzw_string(length, entropy_type):
         exec_variance = calculate_execution_step_variance(matches)
         steps = len(compressed)
 
-        if (abs(d_size - target_dict_size) <= 1
-                and abs(steps - target_steps) <= 1
+        if (abs(d_size - target_dict_size) <= tolerance
+                and abs(steps - target_steps) <= tolerance
                 and len(compressed) < len(text)):
             return text, d_size, compressed, entropy_value, exec_variance
 
@@ -259,6 +282,7 @@ def generate_latex_report(text, compressed_out, final_dict_size, filename="lzw_c
 
     return filename
 
+
 def main():
     clear_output_folders()
     print("--- LZW LaTeX Question Generator ---")
@@ -273,9 +297,19 @@ def main():
     except ValueError:
         length, entropy, num_questions = 15, 'high_entropy', 5
 
-    for i in range(1, num_questions + 1):
+    seen = set()
+    i = 1
+    while i <= num_questions:
         print(f"\n--- Generating Question {i} ---")
-        text, d_size, out, entropy_value, exec_variance = generate_smart_lzw_string(length, entropy)
+        text, d_size, out, entropy_value, exec_variance = generate_smart_lzw_string(
+            length, entropy, seen=seen
+        )
+
+        # Skip duplicates — can happen when sample space is small
+        if text in seen:
+            print(f"  Duplicate detected, retrying...")
+            continue
+        seen.add(text)
 
         answer_tex = os.path.join(ANSWERS_FOLDER, f"lzw_answer_{i}.tex")
         question_tex = os.path.join(QUESTIONS_FOLDER, f"lzw_question_{i}.tex")
@@ -295,6 +329,8 @@ def main():
         print(f"  Dict size:          {d_size}")
         print(f"  Answer File:        {answer_tex}")
         print(f"  Question File:      {question_tex}")
+
+        i += 1
 
 
 if __name__ == "__main__":
