@@ -137,8 +137,8 @@ def generate_smart_lzw_string(length, entropy_type, seen=None):
                 and len(compressed) < len(text)):
             
             entropy_value = calculate_shannon_entropy(text)
-            calculate_input_variance = calculate_input_variance(text)
-            return text, d_size, compressed, entropy_value, calculate_input_variance
+            input_variance = calculate_input_variance(text)
+            return text, d_size, compressed, entropy_value, input_variance
 
     # If it fails it raise an error instead of returning bad data
     raise ValueError(f"Failed to generate a valid sequence for length {length} after 100,000 attempts. Try adjusting constraints.")
@@ -287,7 +287,7 @@ def main():
     while i <= num_questions:
         print(f"\n--- Generating Question {i} ---")
         try:
-            text, d_size, out, entropy_value, match_diversity = generate_smart_lzw_string(
+            text, d_size, out, entropy_value, input_variance = generate_smart_lzw_string(
                 length, entropy, seen=seen
             )
         except ValueError as e:
@@ -305,12 +305,12 @@ def main():
 
         log_question_data("question_metrics.csv", [
             i, text, round(entropy_value, 3), d_size,
-            len(out), len(text), len(out), round(match_diversity, 3)
+            len(out), len(text), len(out), round(input_variance, 3)
         ])
 
         print(f"  String:             {text}")
         print(f"  Entropy:            {entropy_value:.3f} bits")
-        print(f"  Match Diversity:    {match_diversity:.3f}")
+        print(f"  Input Variance:    {input_variance:.3f}")
         print(f"  Steps:              {len(out)}")
         print(f"  Dict size:          {d_size}")
         print(f"  Answer File:        {answer_tex}")
