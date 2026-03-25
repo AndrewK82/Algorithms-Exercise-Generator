@@ -325,12 +325,12 @@ def main():
     clear_output_folders()
     print("--- LZW Decompression Question Generator ---")
     try:
+        length = int(input("Enter string length (8-30): "))
+        length = max(8, min(length, 30))
+
         print("Select Complexity Profile:\n1. High Entropy\n2. Low Entropy")
         choice = input("Choice (1 or 2): ").strip()
         entropy_type = 'high_entropy' if choice != '2' else 'low_entropy'
-
-        length = int(input("Enter string length (8-30): "))
-        length = max(8, min(length, 30))
 
         num_questions = int(input("How many questions to generate? "))
         num_questions = max(1, num_questions)
