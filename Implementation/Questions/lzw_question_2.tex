@@ -1,0 +1,53 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage[table]{xcolor}
+\usepackage{array}
+\begin{document}
+\begin{center}
+{\Large \textbf{LZW Compression Question}}
+\end{center}
+\vspace{1em}
+\noindent \textit{\textbf{Input Sequence:}}
+\begin{center}
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{|c|c|c|c|c|c|c|c|c|c|c|c|}
+\hline
+\rowcolor{white!95!black} T & A & T & A & G & C & G & C & C & G & A & T \\
+\hline
+\end{tabular}
+\end{center}
+\vspace{1em}
+\noindent Using the LZW algorithm, compress the sequence from left to right. \\[1.5em]
+Start with the initial dictionary: A = 00, C = 01, G = 10, and T = 11 (Indices 0--3). \\[1.5em]
+At each step, identify the longest matching string in the dictionary and output its binary code. Form a new dictionary entry by appending the next symbol in the sequence to the current match, assigning it the next available integer index. Complete the table provided below.
+\vspace{3em}
+\par
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.4}
+\arrayrulecolor{gray}
+\begin{tabular}{|c|c|c|c|c|c|c|}
+\hline
+\rowcolor{lightgray} Step & Position in String & Longest String in Dictionary & k & Binary Encoding & String Added & Code Created \\
+\hline
+\rowcolor{white!92!black} 1 & 1 & T & 2 & 11 & TA & 4 \\ \hline
+ & & & & & & \\ \hline
+ & & & & & & \\ \hline
+ & & & & & & \\ \hline
+ & & & & & & \\ \hline
+ & & & & & & \\ \hline
+ & & & & & & \\ \hline
+ & & & & & & \\ \hline
+ & & & & & & \\ \hline
+ & & & & & & \\ \hline
+ & & & & & & \\ \hline
+ & & & & & & \\ \hline
+ & & & & & & \\ \hline
+\end{tabular}
+\arrayrulecolor{black}
+\end{center}
+\vspace{1em}
+\end{document}
