@@ -365,11 +365,6 @@ def main():
         build_latex(text, bitstream, total_bits, steps,
                     filename=question_tex, include_solution=False)
 
-        log_metrics("decompression_metrics.csv", [
-            i, text, total_bits, len(steps), multi, final_dict_size,
-            round(entropy_value, 3), round(input_variance, 3), is_special
-        ])
-
         print(f"  String:             {text}")
         print(f"  Entropy:            {entropy_value:.3f} bits")
         print(f"  Input Variance:     {input_variance:.3f}")

@@ -303,11 +303,6 @@ def main():
         generate_latex_report(text, out, d_size, filename=answer_tex, include_solution=True)
         generate_latex_report(text, out, d_size, filename=question_tex, include_solution=False)
 
-        log_question_data("question_metrics.csv", [
-            i, text, round(entropy_value, 3), d_size,
-            len(out), len(text), len(out), round(input_variance, 3)
-        ])
-
         print(f"  String:             {text}")
         print(f"  Entropy:            {entropy_value:.3f} bits")
         print(f"  Input Variance:    {input_variance:.3f}")
