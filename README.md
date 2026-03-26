@@ -33,7 +33,7 @@ Same prompts as above, plus:
 python LZW_Figure_Generator.py
 
 
-Generates all evaluation figures into `dissertation_figures_v3/`. Takes a few minutes to run.
+Generates all evaluation figures into `/Figures`. Takes a few minutes to run.
 
 ## Output
 
