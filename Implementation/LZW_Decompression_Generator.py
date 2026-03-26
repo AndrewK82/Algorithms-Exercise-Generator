@@ -1,6 +1,5 @@
 import random
 import math
-import csv
 import os
 from collections import Counter
 
@@ -302,22 +301,6 @@ def build_latex(text, bitstream, total_bits, steps, filename, include_solution=T
     return filename
 
 # ------------------------------------------------------------------
-# CSV LOGGING
-# ------------------------------------------------------------------
-
-def log_metrics(filename, row):
-    exists = os.path.exists(filename)
-    with open(filename, 'a', newline='') as f:
-        writer = csv.writer(f)
-        if not exists:
-            writer.writerow([
-                "Q", "Text", "BitStream_Bits", "Num_Steps",
-                "Multi_Char_Steps", "Final_Dict_Size",
-                "Entropy", "Input_Variance", "Special_Case"
-            ])
-        writer.writerow(row)
-
-# ------------------------------------------------------------------
 # MAIN
 # ------------------------------------------------------------------
 
@@ -354,7 +337,6 @@ def main():
             continue
         seen.add(text)
 
-        multi = sum(1 for s in steps if len(s['string']) > 1)
         is_special = has_special_case(text)
 
         answer_tex   = os.path.join(ANSWERS_FOLDER,   f"lzw_decomp_answer_{i}.tex")

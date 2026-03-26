@@ -1,6 +1,5 @@
 import random
 import math
-import csv
 import os
 from collections import Counter
 
@@ -129,7 +128,7 @@ def generate_smart_lzw_string(length, entropy_type, seen=None):
         if has_streak:
             continue
 
-        d_size, compressed, matches = simulate_lzw(text)
+        d_size, compressed, _ = simulate_lzw(text)
         steps = len(compressed)
 
         if (abs(d_size - target_dict_size) <= current_tolerance
@@ -142,24 +141,6 @@ def generate_smart_lzw_string(length, entropy_type, seen=None):
 
     # If it fails it raise an error instead of returning bad data
     raise ValueError(f"Failed to generate a valid sequence for length {length} after 100,000 attempts. Try adjusting constraints.")
-
-def log_question_data(filename, row):
-    file_exists = False
-    try:
-        with open(filename, 'r'):
-            file_exists = True
-    except FileNotFoundError:
-        pass
-
-    with open(filename, 'a', newline='') as f:
-        writer = csv.writer(f)
-        if not file_exists:
-            writer.writerow([
-                "Question", "Sequence", "Entropy", "Final_Dict_Size",
-                "Compressed_Length", "Original_Length", "Steps",
-                "Input Variance"
-            ])
-        writer.writerow(row)
 
 # ------------------------------------------------------------------
 # LATEX GENERATION
