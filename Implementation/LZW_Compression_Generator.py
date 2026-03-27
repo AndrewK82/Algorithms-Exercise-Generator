@@ -110,7 +110,7 @@ def generate_smart_lzw_string(length, entropy_type, seen=None):
         weights = [0.65, 0.18, 0.10, 0.07]
 
     for attempt in range(1, 100001):
-        # Dynamically widen tolerance slightly if we are struggling to find a match
+        # Dynamically widen tolerance slightly if struggling to find a match
         current_tolerance = base_tolerance + (attempt // 25000)
 
         text_list = random.sample(SYMBOLS, len(SYMBOLS))
