@@ -169,7 +169,7 @@ def collect_scaling_data():
                 text, d_size, compressed, entropy = generate_smart_lzw_string(
                     length, profile
                 )
-                vv    = calculate_visual_variance(text)
+                iv    = calculate_visual_variance(text)
                 steps = len(compressed)
                 total_bits = sum(
                     max(2, math.ceil(math.log2(len(SYMBOLS) + i)))
@@ -182,7 +182,7 @@ def collect_scaling_data():
                     'entropy': entropy,
                     'd_size':  d_size,
                     'ratio':   ratio,
-                    'vv':      vv,
+                    'iv':      iv,
                 })
                 done += 1
             print(f"  {done}/{total}  length={length} profile={profile}")
@@ -327,7 +327,7 @@ def fig_ratio_vs_length(data):
 # Figure 5 — Entropy vs input variance scatter
 # ------------------------------------------------------------------
 
-def fig_entropy_vs_vv(data):
+def fig_entropy_vs_iv(data):
     fig, ax = plt.subplots(figsize=(6.5, 4.5))
 
     for profile, col, edge, lbl in [
@@ -338,7 +338,7 @@ def fig_entropy_vs_vv(data):
         for length in LENGTHS:
             for r in data[profile][length]:
                 xs.append(r['entropy'])
-                ys.append(r['vv'])
+                ys.append(r['iv'])
         ax.scatter(xs, ys, c=col, edgecolors=edge, linewidths=0.4,
                    alpha=0.65, s=30, label=lbl, zorder=3)
 
@@ -374,7 +374,7 @@ def main():
     fig_entropy_vs_length(data)
     fig_dictsize_vs_length(data)
     fig_ratio_vs_length(data)
-    fig_entropy_vs_vv(data)
+    fig_entropy_vs_iv(data)
 
     print(f"\nAll figures saved to ./{OUT_DIR}/")
     print("\nSummary table (mean +/- std at n=16):")
