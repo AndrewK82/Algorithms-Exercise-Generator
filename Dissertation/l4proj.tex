@@ -1,13 +1,8 @@
 % REMEMBER: You must not plagiarise anything in your report. Be extremely careful.
 \documentclass{l4proj}
-
-    
-%==============================================================================
-% Put any additional packages here
-% You can add any packages you want, as long as it does not alter
-% the overall format (e.g. don't change the margins or the reference style).
-%
+\let\Bbbk\relax
 \usepackage{pdfpages} % if you want to include a PDF for an ethics checklist, for example
+
 %
 %
 
@@ -15,8 +10,7 @@
 
 %==============================================================================
 %% METADATA
-\title{Automated Generation of Difficulty-Controlled LZW Exercises and Solutions for an Algorithms Course
-} % change this to your title
+\title{Automated Generation of Difficulty-Controlled LZW Exercises and Solutions for an Algorithms Course}
 \author{Andrew King}
 \date{March 27, 2026}
 
@@ -69,9 +63,9 @@ This project focuses specifically on the Lempel--Ziv--Welch (LZW) algorithm, a w
  
 \section{Objectives}
  
-The aims of this project are as follows. First, to design and implement a generator for LZW compression and decompression exercises, such that each generated question set is unique but requires a comparable amount of work to solve. Second, to establish quantifiable difficulty metrics specific to LZW exercises, drawing on information-theoretic measures, principally Shannon entropy, as well as structural properties of the generated questions such as dictionary growth rate and number of output steps. Third, to evaluate how well these metrics predict and control perceived difficulty, through a user study with students and analysis of the generated exercises. Finally, to produce fully formatted question and answer sheets in LaTeX, suitable for direct use in a class test setting.
+The aims of this project are as follows. First, to design and implement a generator for LZW compression and decompression exercises, so that each generated question set is unique but requires a comparable amount of work to solve. Second, to establish quantifiable difficulty metrics specific to LZW exercises, using methods that capture how much information or unpredictability is present, principally Shannon entropy, as well as structural properties of the generated questions such as dictionary growth rate and number of output steps. Third, to evaluate how well these metrics predict and control perceived difficulty, through a user study with students and analysis of the generated exercises. Finally, to produce fully formatted question and answer sheets in LaTeX, suitable for direct use in a class test setting.
  
-A key contribution of this work is the introduction of input variance as an additional difficulty signal. Where Shannon entropy captures the statistical regularity of an input string, input variance captures how visually distinct or patterned the string appears to a student reading it. This is a dimension of difficulty that quantitative information-theoretic measures alone do not fully capture. The relationship between these two metrics, and their combined effect on exercise difficulty, is a key component of the evaluation.
+A key contribution of this work is the introduction of input variance as an additional difficulty signal. Where Shannon entropy captures the statistical regularity of an input string, input variance captures how visually distinct or patterned the string appears to a student reading it. This is a dimension of difficulty that quantitative measures alone do not fully capture. The relationship between these two metrics, and their combined effect on exercise difficulty, is a key component of the evaluation.
  
 \section{Dissertation Structure}
  
@@ -81,21 +75,21 @@ The remainder of this dissertation is structured as follows. Chapter~2 reviews r
 %==================================================================================================================================
 \chapter{Background}
  
-The work in this project sits at the intersection of three areas: automated exercise generation, data compression algorithms, and information-theoretic measures of difficulty. This chapter reviews the relevant literature in each area, and explains why the approach taken here is both grounded in prior work and necessary for this problem.
+The work in this project sits at the intersection of three areas: automated exercise generation, data compression algorithms, and measures of difficulty. This chapter reviews the relevant literature in each area, and explains why the approach taken here is both grounded in prior work and necessary for this problem.
 
 \section{Automated Exercise Generation}
  
-A particularly relevant prior work is \citet{Hoz21}, who address the problem of generating unique examination papers for a logic and computation course at TU Wien. Their central observation is precisely the trade-off that motivates this project: randomly generated exercises eliminate collusion but can produce  papers of varying difficulty, while similar papers eliminate variation but enable collusion. They resolve this by identifying syntactic constraints on generated formulas, for example, requiring exactly seven logical connectives and at most six models, that bound the difficulty of each instance without fixing it entirely. This constraint-based approach is sound for logic problems, where difficulty is closely tied to structural properties of a formula. For LZW exercises, however, structural properties of the input string relate to difficulty in a less direct way, which is why this project develops its own difficulty metrics rather than adopting the same approach wholesale.
+A particularly relevant prior work is \citet{Hoz21}, who address the problem of generating unique examination papers for a logic and computation course at TU Wien. Their central observation is precisely the trade-off that motivates this project: randomly generated exercises eliminate collusion but can produce  papers of varying difficulty, while similar papers eliminate variation but enable collusion. They resolve this by identifying syntactic constraints on generated formulas, for example, requiring exactly seven logical connectives and at most six models, that bound the difficulty of each instance without fixing it entirely. This constraint-based approach is sound for logic problems, where difficulty is closely tied to structural properties of a formula. For LZW exercises, however, structural properties of the input string relate to difficulty in a less direct way, which is why this project develops its own difficulty metrics rather than adopting the exact same approach.
  
-\citet{Hoz21} also make a methodological point worth carrying forward: constraints that are too tight produce a sample space that is either empty or so uniform that generated exercises are too similar. This is a practical concern for any generation algorithm and directly informs the design choices made in Chapter~4.
+\citet{Hoz21} also make an important observation: constraints that are too tight produce a sample space that is either empty or so uniform that generated exercises are too similar. This is a practical concern for any generation algorithm and directly informs the design choices made in Chapter~4.
  
-Prior work at the University of Glasgow \citep{PriorGlasgow} applied similar ideas to Dijkstra's shortest-path algorithm and the Knuth--Morris--Pratt string search algorithm. That work demonstrates that difficulty in graph and string algorithm exercises can be controlled through structural properties of the input, specifically graph density and edge weight distribution for Dijkstra, and string character frequency for KMP. LZW presents a related but distinct challenge: the difficulty of a compression exercise depends not only on character frequencies but on the sequential structure of the string as it is processed by the algorithm, making frequency alone an insufficient predictor of workload.
+Prior work at the University of Glasgow \citep{PriorGlasgow} applied similar ideas to Dijkstra's shortest-path algorithm and the Knuth--Morris--Pratt string search algorithm. That work demonstrates that difficulty in graph and string algorithm exercises can be controlled through structural properties of the input, specifically graph density and edge weight distribution for Dijkstra, and string character frequency for KMP. LZW presents a related but distinct challenge: the difficulty of compression depends not only on character frequencies, but also on the order in which patterns appear, meaning frequency alone cannot account for the overall workload.
  
 \section{The LZW Algorithm}
  
 The LZW algorithm, introduced by \citet{Welch84} as a refinement of earlier work by \citet{ZivLempel77}, is a dictionary-based lossless compression algorithm. It operates by maintaining a dictionary of previously encountered substrings, initialised with the base alphabet. During compression, the algorithm reads the input left to right, extending the current match as far as possible before outputting the dictionary index of the match and adding a new entry. During decompression, the dictionary is reconstructed incrementally from the compressed output alone. It is this step-by-step execution that makes LZW well-suited to written exercises: a student can be asked to trace either process by completing a table of steps, and the correctness of each step can be verified unambiguously.
  
-What makes the difficulty of an LZW exercise non-obvious is that the number of steps required, and the cognitive load of each step, depends on how quickly the dictionary grows. A string whose substrings repeat frequently will produce fewer, longer dictionary entries and fewer output codes; a string with little repetition will generate many short entries and more output codes. Neither of these properties is immediately apparent from a string's length or character distribution alone. A practical description of LZW's encoding procedure, including the variable-width code scheme used in this project, is given by \citet{Nelson89}.
+What makes the difficulty of an LZW exercise non-obvious is that the number of steps required, and the cognitive load of each step, depends on how quickly the dictionary grows. A string whose substrings repeat frequently will produce fewer, longer dictionary entries and fewer output codes; a string with little repetition will generate many short entries and more output codes. Neither of these properties is immediately apparent from a string's length or character distribution alone. A practical description of LZW's encoding procedure, and the variable-width coding approach used in this project, is given by \citet{Nelson89}.
  
 \section{Entropy as a Difficulty Signal}
  
@@ -103,9 +97,9 @@ The relationship between LZW's compression behaviour and the entropy of its inpu
 \begin{equation}
     H = -\sum_{i} p_i \log_2 p_i,
 \end{equation}
-which measures the average information content per symbol and sets a lower bound on the compressed size achievable by any lossless scheme. A string with high entropy has symbols distributed close to uniformly, which offers little redundancy for LZW to exploit. A low-entropy string has a skewed distribution, producing longer repeated substrings and faster dictionary saturation.
+This measures the average information content per symbol and provides a lower bound on the size achievable by any lossless compression scheme. Strings with high entropy have symbols that are close to uniformly distributed, leaving little redundancy for LZW to exploit. In contrast, low-entropy strings have more skewed distributions, leading to longer repeated patterns and faster dictionary growth.
  
-\citet{KosarajuManzini99} formalise this relationship for LZW specifically, proving bounds on how well LZW's compression ratio tracks the zeroth-order empirical entropy $H_0$ of the input string. Crucially, they show that on low-entropy strings, those where $H_0 \rightarrow 0$, the compression ratio can be significantly worse than that predicted by the entropy alone. This finding has a direct implication for exercise generation: Shannon entropy is a useful but imperfect predictor of how an LZW execution will behave. A low-entropy string does not automatically produce a short, easy exercise; the sequential structure of the string matters independently.
+\citet{KosarajuManzini99} describe this relationship for LZW specifically, proving how well LZW's compression ratio tracks the zeroth-order empirical entropy $H_0$ of the input string. Crucially, they show that on low-entropy strings, those where $H_0 \rightarrow 0$, the compression ratio can be significantly worse than that predicted by the entropy alone. This finding has a direct implication for exercise generation: Shannon entropy is a useful but imperfect predictor of how an LZW execution will behave. A low-entropy string does not automatically produce a short, easy exercise; the structure of the string matters independently.
  
 This means that entropy alone is not enough to control how difficult an LZW exercise actually feels. The step count of a string and the growth of the dictionary tell you how much work a student has to do, which entropy does not. Also, two strings with the same entropy can look completely different to a student reading them before they even start, one might have an obvious repeating pattern, while the other looks random. This visual dimension is what Chapter~4 introduces as input variance. Used together, these three metrics entropy, step count and dictionary growth, and input variance give a much more complete picture of difficulty than any one of them alone, and form the basis of the difficulty control approach used throughout this project.
 %==================================================================================================================================
@@ -123,7 +117,7 @@ First, it must be \emph{tractable}: the number of steps must be small enough tha
 
 Second, it must be \emph{non-trivial}: the number of steps must be large enough to test meaningful understanding of the algorithm. An input that compresses in three steps does not require a student to demonstrate that they understand how the dictionary evolves.
 
-Third, it must \emph{exhibit actual compression}: if the compressed output is longer than the input, the exercise undermines the conceptual point of the algorithm. The generator should therefore reject strings for which LZW fails to compress.
+Third, it must \emph{exhibit actual compression}: if the compressed output is longer than the input, the exercise undermines the point of the algorithm. The generator should therefore reject strings that LZW does not compress.
 
 These three properties constrain the space of valid inputs independently of difficulty. They are necessary conditions that any generated exercise must satisfy before difficulty is considered.
 
@@ -137,11 +131,11 @@ This is the central question in the design. The background identified that Shann
 
 \textbf{Perceptual difficulty} refers to how the string appears to a student before they begin tracing. A string such as \texttt{AAACAAAC} is visually regular; a student will immediately identify the dominant pattern and form expectations about the execution. A string such as \texttt{ACGTCAGT} appears irregular, requiring the student to engage with each step without such shortcuts. This perceptual dimension is not captured by entropy, which treats character frequencies as the only relevant property of the string. It is used in this project as \emph{input variance}, defined precisely in Chapter~4.
 
-The key insight is that controlling difficulty requires all three dimensions to be managed together. Fixing only step count can produce exercises that are technically equivalent in length but very different in cognitive load. Fixing only entropy can produce exercises where step counts vary widely. A generator that targets specific ranges across all three dimensions is more likely to produce exercises that feel comparable to students sitting the same test.
+The key point is that difficulty depends on all three factors being considered together. Fixing only step count can produce exercises that are technically equivalent in length but very different in cognitive load. Fixing only entropy can produce exercises where step counts vary widely. A generator that targets specific ranges across all three dimensions is more likely to produce exercises that feel comparable between students sitting the same test.
 
 \subsection{Compression versus Decompression}
 
-Compression and decompression exercises test different aspects of student understanding and have different difficulty profiles. In compression, the student must identify the longest current dictionary match at each step, which requires maintaining awareness of the evolving dictionary. In decompression, the student must reconstruct the dictionary from the code sequence alone, which tests understanding of the algorithm's symmetry and the special case where a code is used before it is fully defined. Because the difficulty drivers differ, the generator treats compression and decompression as separate exercise types with separate difficulty controls, even though both operate on the same underlying alphabet and dictionary structure.
+Compression and decompression exercises test different aspects of student understanding and have different difficulty profiles. In compression, the student must identify the longest current dictionary match at each step, which requires tracking how the dictionary changes over time. In decompression, the student must reconstruct the dictionary from the code sequence alone, which tests understanding of the algorithm's symmetry and the special case where a code is used before it is fully defined. Because the factors that drive difficulty differ, the generator treats compression and decompression as separate types of exercise, each with its own difficulty controls, even though both use the same underlying alphabet and dictionary structure.
 
 \section{Requirements}
 
@@ -156,7 +150,7 @@ The following requirements are stated using the MoSCoW method, categorised as Mu
 
     \item The system must generate valid LZW decompression exercises from compressed code sequences, with a corresponding answer key.
 
-    \item Generated exercises must satisfy the well-formedness conditions established in Section~3.1: the step count must fall within a configurable tractable range, and the compressed output must be shorter than the input.
+    \item Generated exercises must be consistent meeting conditions established in Section~3.1: the step count must fall within a configurable tractable range, and the compressed output must be shorter than the input.
 
     \item The system must accept a difficulty profile (high entropy or low entropy) as input, and generate exercises whose Shannon entropy and step count fall within the corresponding target ranges.
 
@@ -188,7 +182,7 @@ The following requirements are stated using the MoSCoW method, categorised as Mu
 \textbf{Won't Have}
 
 \begin{itemize}
-    \item The system will not provide an interactive graphical interface. The target users are educators generating papers in bulk; a command-line interface with configurable parameters is sufficient for this use case.
+    \item The system won’t provide a graphical interface. For educators generating exercises in bulk, a command-line interface with configurable options is enough.
 
     \item The system will not automatically compile the generated LaTeX files to PDF. This is left to the educator.
 \end{itemize}
@@ -215,7 +209,7 @@ The following requirements are stated using the MoSCoW method, categorised as Mu
 %==================================================================================================================================
 \chapter{Design}
 
-This chapter describes the design of the exercise generation system, independent of implementation language or library choices. The design is driven by the requirements established in Chapter~3: a generator must produce LZW compression and decompression exercises that are well-formed, unique, and comparable in difficulty across a batch.
+This chapter describes the design of the exercise generation system, independent of implementation or library choices. The design is driven by the requirements established in Chapter~3: a generator must produce LZW compression and decompression exercises that are well-formed, unique, and comparable in difficulty across a batch.
 
 \section{System Architecture}
 
@@ -257,17 +251,17 @@ The choice of alphabet is similarly grounded in the lecture material. The four-s
 
 \subsection{The First-Row Scaffold}
 
-One deliberate usability feature of the question sheet is that the first row of the step table is always completed for the student. There are two reasons for this. First, it disambiguates the table format: even if a student is uncertain how a column should be filled in, the worked first row provides a concrete reference. This is particularly important for the binary encoding column, where the variable bit width can be a source of confusion. Second, it reduces the effect of a student making an error on the very first step and then propagating that error through every subsequent row. By anchoring the table, the exercise better isolates each student's understanding of the algorithm's main loop from their ability to initialise the procedure correctly.
+One deliberate usability feature of the question sheet is that the first row of the step table is always completed for the student. There are two reasons for this. First, it disambiguates the table format: even if a student is uncertain how a column should be filled in, the worked first row provides a concrete reference. This is particularly important for the binary encoding column, where the variable bit width can be a source of confusion. Second, it reduces the effect of a student making an error on the very first step and then continuing that error for the remainder of the question. By anchoring the table, the exercise better isolates each student's understanding of the algorithm's main loop from their ability to initialise the procedure correctly.
 
 \subsection{Concealing the Step Count}
 
-A subtler design decision concerns how many blank rows to include in the question sheet. A naive implementation would include exactly as many blank rows as there are steps in the correct solution, which would inadvertently reveal the answer as a student who counts the blank rows would know exactly how many output codes the compression produces. The design therefore adds a small number of extra blank rows beyond the true step count. Students cannot then infer the number of steps from the table size, and must instead work through the algorithm until it terminates naturally.
+A subtler design decision concerns how many blank rows to include in the question sheet. A naive implementation would include exactly as many blank rows as there are steps in the correct solution, which would inadvertently reveal the answer as a student who counts the blank rows would know exactly how many lines are rquired to complete the question. The design therefore adds a small number of extra blank rows beyond the true step count. Students therefore cannot then infer the number of steps from the table size, and must instead work through the algorithm until it terminates naturally.
 
 \section{Difficulty Control}
 
 \subsection{The Generation Loop}
 
-The central design challenge is that it is not possible to compute the difficulty metrics of an LZW exercise without first simulating the algorithm on a candidate string. There is no closed-form relationship between a string's surface properties and its step count or dictionary growth. The design therefore adopts a \emph{generate-and-filter} approach, consistent with the strategy used by \citet{Hoz21} for SAT problems, strings are generated randomly and are accepted or rejected according to set structural constraints; each string must contain all four alphabet symbols, must not contain long runs of identical characters, and must produce a step count and dictionary size within the target band simulated.
+The core design challenge is that an LZW exercise’s difficulty cannot be determined without first simulating the algorithm on the candidate string. There is no simple formula linking a string’s surface properties to its step count or dictionary growth. The design therefore adopts a \emph{generate-and-filter} approach, consistent with the strategy used by \citet{Hoz21} for SAT problems, strings are generated randomly and are accepted or rejected according to set structural constraints; each string must contain all four alphabet symbols, must not contain long runs of identical characters, and must produce a step count and dictionary size within the target band simulated.
 
 This loop is shown in Algorithm~\ref{alg:genloop}.
 
@@ -279,7 +273,7 @@ This loop is shown in Algorithm~\ref{alg:genloop}.
     $i \longleftarrow 0$\;
     \While{$i < M$}{
         $s \longleftarrow \textsc{GenerateCandidate}(n, d)$\;
-        \If{\textsc{HasUglyStreak}$(s)$}{
+        \If{\textsc{HasIdenticalRun}$(s)$}{
             $i \longleftarrow i + 1$\;
             \textbf{continue}\;
         }
@@ -295,7 +289,7 @@ This loop is shown in Algorithm~\ref{alg:genloop}.
 \label{alg:genloop}
 \end{algorithm}
 
-The attempt limit $M$ is a practical safeguard against the failure mode identified by \citet{Hoz21}: constraints that are too tight can cause the generator to run indefinitely. Setting $M$ to a large but finite value ensures the system reports failure cleanly rather than hanging.
+The attempt limit $M$ is a practical safeguard against the failure mode identified by \citet{Hoz21}: overly tight constraints can cause the generator to run indefinitely. By setting $M$ to a large but finite value, the system can report failure cleanly instead of hanging.
 
 \subsection{Difficulty Profiles}
 
@@ -310,25 +304,25 @@ Two difficulty profiles are supported: high entropy and low entropy. These corre
 \end{tabular}
 \end{table}
 
-The target step count is held constant across profiles so that both produce exercises requiring the same amount of written work. What differs is the cognitive character of that work: a high-entropy exercise requires the student to track an unpredictable sequence of matches, while a low-entropy exercise involves recognising repeated structure. This distinction is captured partly by Shannon entropy and partly by input variance.
+The target step count is kept constant across profiles so that both generate exercises requiring the same amount of written work. What differs is the nature of that work: high-entropy exercises require students to track unpredictable sequences, whereas low-entropy exercises involve recognising repeated patterns. This distinction is reflected partly in Shannon entropy and partly in the variance of the input.
 
 \subsection{Shannon Entropy as a Difficulty Signal}
 
 Shannon entropy is computed from the character frequency distribution of the input string, as defined in Chapter~2. For the four-symbol alphabet \{A, C, G, T\}, maximum entropy is $\log_2 4 = 2$ bits per symbol, achieved when all four characters appear with equal frequency. Low-entropy strings have a dominant character whose frequency pulls the distribution away from uniform.
 
-Entropy is used in this design as a diagnostic metric rather than a primary filter. As \citet{KosarajuManzini99} show, the relationship between entropy and LZW execution behaviour is not tight for short strings: two strings with similar entropy can produce very different step counts. The primary difficulty controls are therefore step count and dictionary growth, with entropy logged alongside each exercise to allow post-hoc analysis of consistency within a batch.
+Entropy is used in this design as a diagnostic metric rather than a primary filter. As \citet{KosarajuManzini99} show, the relationship between entropy and LZW execution behaviour is not tight for short strings: two strings with similar entropy can produce very different step counts. The primary difficulty controls are therefore step count and dictionary growth, with entropy reported alongside each exercise in the terminal output to allow an educator to check consistency across a batch.
 
 \subsection{Input Variance}
 
-Input variance is an additional difficulty signal not captured by Shannon entropy. A student tracing the LZW algorithm by hand is affected not only by the statistical regularity of the string but by its appearance. A string such as \texttt{AAACAAAC} contains obvious visual structure that a student will recognise and use to form expectations about the execution. A string such as \texttt{ACGTCAGT} appears irregular, requiring the student to engage with each step independently.
+Input variance is an additional difficulty signal not captured by Shannon entropy. A student tracing the LZW algorithm by hand is affected not only by the statistical regularity of the string but also by its appearance. A string such as \texttt{AAACAAAC} contains obvious visual structure that a student will recognise and use to form expectations about the execution. A string such as \texttt{ACGTCAGT} appears irregular, requiring the student to engage with each step independently.
 
-Input variance is operationalised as the number of distinct adjacent character pairs (bigrams) in the input string, normalised by the maximum possible number of distinct bigrams given the alphabet size. Formally, for a string $s$ of length $n$ over alphabet $\Sigma$:
+Input variance is measured as the number of distinct adjacent character pairs (bigrams) in the input string, normalised by the maximum possible number of distinct bigrams given the alphabet size. Formally, for a string $s$ of length $n$ over alphabet $\Sigma$:
 
 \begin{equation}
     V(s) = \frac{|\{(s_i, s_{i+1}) : 1 \leq i < n\}|}{|\Sigma|^2}
 \end{equation}
 
-A string with high input variance has many distinct adjacent pairs, appearing irregular to a reader. A string with low input variance has few distinct pairs, appearing patterned. This measure is simple to compute, requires no simulation, and is independent of entropy: a low-entropy string can have either high or low input variance depending on whether the dominant character appears in varied contexts.
+A string with high input variance has many distinct adjacent pairs, appearing irregular to a reader. A string with low input variance has few distinct pairs, appearing patterned. This measure is simple to compute and is independent of entropy: a low-entropy string can have either high or low input variance depending on whether the dominant character appears in varied contexts.
 
 Input variance is introduced in this project as a novel difficulty signal for LZW exercises. No known prior work on automated exercise generation, including \citet{Hoz21} and \citet{PriorGlasgow}, identifies the visual appearance of the input string as a dimension of perceived difficulty distinct from its statistical properties. The observation that motivates it is straightforward: two strings with identical Shannon entropy can look very different to a student reading them, and that difference in appearance affects how easily a student can form expectations about the execution before they begin tracing. Bigram diversity was chosen because it is the simplest measure that captures adjacency structure rather than just character frequency, requires no algorithm simulation, and produces a continuous value that varies independently of entropy across the generated string space.
 
@@ -344,7 +338,7 @@ The compression simulator processes the input string left to right, maintaining 
 
 Students must track not only the dictionary entries but also the number of bits used at each step. The simulator records the position in the bitstream where each code begins, so that the question sheet can show students where to start reading at each step.
 
-The final symbol in the input is always emitted using the dictionary size after all preceding entries have been added, since no new entry is created at the last step. This edge case is handled explicitly in the simulator and is reflected in the answer key format, where the last row has no entry in the ``string added'' column.
+The final symbol in the input is always emitted using the dictionary size after all preceding entries have been added, because no new entry is created at the last step. This edge case is handled explicitly in the simulator and is reflected in the answer key, where the last row leaves the “string added” column empty.
 
 \subsection{Decompression}
 
@@ -358,7 +352,7 @@ Both simulators produce traces in the same tabular format, which maps directly o
 
 \subsection{Output Format}
 
-The document generator produces output in LaTeX format. This was decided in consultation with the lecturer who would be using the tool: LaTeX integrates directly into the existing workflow for producing course materials and examination papers at the University of Glasgow. Producing LaTeX source rather than a PDF directly gives the educator full control over final formatting, allows exercises to be embedded within a larger examination document, and makes it straightforward to adjust spacing or typography without regenerating the exercise.
+The document generator produces output in LaTeX format. This was decided with the lecturer who would be using the tool: LaTeX integrates directly into the existing means for producing course materials and examination papers at the University of Glasgow. Producing LaTeX source rather than a PDF directly gives the educator full control over final formatting, allows exercises to be embedded within a larger examination document, and makes it straightforward to adjust spacing or typography without regenerating the exercise.
 
 \subsection{Question and Answer Sheet Structure}
 
@@ -374,7 +368,7 @@ When generating a batch of exercises, the system produces separate question and 
 
 The system is operated through a minimal command-line interface rather than a graphical application. This is a deliberate design decision. The target user is an educator who will run the generator occasionally to produce a batch of exercises; a graphical interface would add significant implementation complexity without providing meaningful benefit for this use case.
 
-The interface presents the user with a small number of clearly labelled choices: a numeric string length bounded between 8 and 30, a binary choice between high and low entropy profile, and a count of how many exercises to generate. Default values are provided for all parameters so that the tool can be run immediately without configuration. The educator's concern is the difficulty level and quantity of exercises, not the internal parameters of the generation algorithm, so exposing only these three controls keeps the interface accessible without requiring specialist knowledge of how the generator works.
+The interface presents the user with a small number of clearly labelled choices: a  string length between 8 and 30 characters, a choice between high and low entropy profile, and a count of how many exercises to generate. Default values are provided for all parameters so that the tool can be run immediately without configuration. The educator's concern is the difficulty level and quantity of exercises, not the internal parameters of the generation algorithm, so exposing only these three controls keeps the interface accessible without requiring deep knowledge of how the generator works.
 
 
 %==================================================================================================================================
@@ -384,7 +378,7 @@ This chapter describes the implementation of the LZW exercise generation system.
 
 \section{Overview}
 
-The system consists of two Python scripts: one for compression exercises and one for decompression exercises. Both follow the four-component architecture described in Chapter~4 and share the same core logic for string generation, LZW simulation, and difficulty targeting. Python was chosen because its standard library covers everything needed; string processing, random sampling, and maths without requiring any external dependencies.
+The system consists of two Python scripts: one for compression exercises and one for decompression exercises. Both follow the four-component architecture described in Chapter~4 and share the same core logic for string generation, LZW simulation, and difficulty. Python was chosen because its standard library covers everything needed; string processing, random sampling, and maths without requiring any external dependencies.
 
 The compression generator takes a string length, difficulty profile, and batch size as input, then produces LaTeX question and answer sheets. The decompression generator works the same way but additionally asks whether the generated exercises should include the special case, where a code is encountered before its dictionary entry is fully defined.
 
@@ -394,9 +388,9 @@ Both generators produce output in the same folder structure: question sheets in 
 
 \subsection{The Generate-and-Filter Loop}
 
-The central implementation challenge is producing strings whose LZW execution properties fall within a target band. As there is no closed-form relationship between a string's characters and its step count or dictionary growth, the approach taken is to generate candidates and reject those that do not meet the targets.
+The main implementation challenge is generating strings whose LZW execution falls within a desired range. As there is no closed-form relationship between a string's characters and its step count or dictionary growth, the approach taken is to generate candidates and reject those that do not meet the targets.
 
-The generator seeds each candidate by first drawing all four symbols without replacement, guaranteeing that every generated string contains at least one occurrence of each character in the alphabet. This prevents bad cases where a symbol is absent entirely, which would reduce the effective alphabet size and break the assumption that the initial dictionary has four entries. The remaining characters are drawn with profile-dependent weights: uniform (0.25 each) for high entropy, and skewed (0.6, 0.2, 0.1, 0.1) for low entropy. The string is then shuffled to remove any ordering bias introduced by the sampling procedure.
+The generator creates each candidate by first drawing all four symbols without replacement, guaranteeing that every generated string contains at least one occurrence of each character in the alphabet. This prevents bad cases where a symbol is absent entirely, which would reduce the effective alphabet size and break the assumption that the initial dictionary has four entries. The remaining characters are drawn with profile-dependent weights: uniform (0.25 each) for high entropy, and skewed (0.65, 0.18, 0.10, 0.07) for low entropy. The string is then shuffled to remove any ordering bias introduced by the sampling procedure.
 
 \begin{lstlisting}[language=Python, float,
   caption={The candidate string generation procedure. All four symbols are
@@ -411,7 +405,7 @@ text = "".join(text_list)
 
 Before simulation, each candidate is tested for long runs of identical characters. A string is rejected if it contains more than \texttt{max\_streak} consecutive identical symbols, where \texttt{max\_streak} is 2 for high entropy and 3 for low entropy. Strings with long runs produce exercises where many consecutive steps are trivially identical, reducing their value as assessment questions regardless of their formal entropy.
 
-After passing the streak test, the string is simulated using \texttt{simulate\_lzw}, which returns the final dictionary size and the list of output codes. A candidate is accepted if its step count and dictionary size are both within one of their respective targets, and if the compressed output is strictly shorter than the original string in symbols. If no candidate is accepted within 100,000 iterations, the loop exits and returns the most recent result as a best-effort fallback.
+After passing the streak test, the string is simulated using \texttt{simulate\_lzw}, which returns the final dictionary size and the list of output codes. A candidate is accepted if its step count and dictionary size are both within one of their respective targets, and if the compressed output is strictly shorter than the original string in symbols. To avoid the generator hanging on difficult parameter combinations, the acceptance tolerance is widened slightly every 25,000 attempts. If no candidate is accepted within 100,000 iterations, the loop exits and returns the most recent result as a best-effort fallback.
 
 \subsection{Target Computation}
 
@@ -436,7 +430,7 @@ Figure~\ref{fig:steps_vs_length} shows that both profiles track the target step 
 
 \subsection{Compression}
 
-The compression simulator maintains a dictionary initialised with the four base symbols, then processes the input left to right, extending the current match greedily. When a character would extend the match beyond a known entry, the current match is emitted as a code, the new entry is added to the dictionary, and the match resets to the current character. The bit width used to encode output code is computed at the moment of emission as $\lceil \log_2(\text{dict size}) \rceil$, where dict size is the number of entries before the new entry is added. This matches the convention used in the lecture slides and ensures that the decoder can reconstruct the same bit widths from the dictionary alone.
+The compression simulator starts with a dictionary containing the four base symbols and reads the input from left to right, always trying to extend the current match as far as possible. When adding the next character would go beyond a known dictionary entry, the simulator outputs the current match as a code, adds the new entry to the dictionary, and starts the match again from that character. The number of bits used to encode each code is calculated at that moment as $\lceil \log_2(\text{dict size}) \rceil$, where dict size counts the entries before adding the new one. This is the same approach used in the lecture slides and ensures the decoder can reconstruct the correct bit widths from the dictionary alone.
 
 An important edge case is the final symbol of the input, which is always emitted even though it does not trigger the addition of a new dictionary entry. The implementation handles this by appending a final step after the main loop exits, using the current dictionary size at that point. In the answer key, this final row has a dash in both the ``String Added'' and ``Code Created'' columns, as shown in the bottom row of Figure~\ref{fig:compression_answer}.
 
@@ -444,7 +438,7 @@ An important edge case is the final symbol of the input, which is always emitted
 
 The decompression simulator operates on the binary stream produced by compression. At each step it reads the appropriate number of bits, looks up the code in the incrementally rebuilt dictionary, and outputs the corresponding string. The bit width at each step is computed using the same formula as compression, applied to the decoder's current dictionary size, which mirrors the encoder's state because both process the same sequence of codes.
 
-The standard decompression edge case arises when a code is encountered that has not yet been added to the decoder's dictionary. This occurs when the encoder emits a code for a string that was only just added in the previous step. The decoder handles this by constructing the missing entry as the previous output string concatenated with its own first character. This case is visually flagged in the answer key with a highlighted row, as it is the step students most commonly find confusing.
+The standard decompression special case arises when a code is encountered that has not yet been added to the decoder's dictionary. This occurs when the encoder emits a code for a string that was only just added in the previous step. The decoder handles this by constructing the missing entry as the previous output string concatenated with its own first character. This case is noted in the answer key through the Special Case: Yes field reported in the terminal output, allowing an educator to identify which exercises contain it before distributing papers.
 
 There is also an optional mode that guarantees the special case appears in every generated exercise. The way this works is that each candidate string is run through a detection function, \texttt{has\_special\_case}, which checks whether any emitted code during compression equals \texttt{dict\_size - 1} at the moment it is output — the exact condition that will trip up the decoder. Strings that do not trigger this are rejected and the generator tries again. This lets an educator decide whether they want to specifically test the edge case or leave it out entirely for students who are still getting to grips with the basic algorithm.
 
@@ -466,12 +460,12 @@ Figure~\ref{fig:terminal_output} shows the terminal output when generating a bat
 \begin{figure}[htb]
     \centering
     \includegraphics[width=\linewidth]{images/terminal_output_specialcase.png}
-    \caption{Terminal output when generating decompression exercises with special case mode enabled. The Special Case: Yes field confirms that the generated exercise contains the LZW decompression edge case, where a code is encountered before its dictionary entry is fully defined. This mode allows an educator to specifically target this aspect of the algorithm for assessment.} \label{fig:terminal_output_specialcase}
+    \caption{Terminal output when generating decompression exercises with special case mode enabled. The Special Case: Yes field confirms that the generated exercise contains the LZW decompression edge case, where a code is encountered before its dictionary entry is fully defined. This allows an educator to specifically target this aspect of the algorithm for assessment.} \label{fig:terminal_output_specialcase}
 \end{figure}
 
 The question sheet, shown in Figure~\ref{fig:compression_question}, displays the input sequence in a per-character table at the top of the page, followed by the task instructions and the step table. The first row of the step table is pre-populated with the correct values for step 1, providing a worked example that anchors the table format for the student. All remaining rows are blank. The number of blank rows is equal to the true step count plus four additional rows, so that the table size does not reveal the answer to the student.
 
-The answer key, shown in Figure~\ref{fig:compression_answer}, uses the same layout but populates all rows with the correct values from the simulation trace. The header is marked ``Examiner Solution Key'' to distinguish it from the student-facing sheet.
+The answer key, shown in Figure~\ref{fig:compression_answer}, uses the same layout but populates all rows with the correct values from the simulation trace. The header is marked ``Examiner Solution Key'' to distinguish it from the student's question sheet.
 
 \begin{figure}[htbp]
     \centering
@@ -522,7 +516,7 @@ Figure~\ref{fig:dictsize_vs_length} shows dictionary growth for both profiles. T
     \label{fig:dictsize_vs_length}
 \end{figure}
 
-Figure~\ref{fig:attempts_vs_length} shows an asymmetry between the two profiles that is not visible from the output metrics alone. The low entropy profile requires consistently around 10,000 to 20,000 generation attempts at all string lengths, while the high entropy profile requires far fewer at moderate lengths but spikes at $n = 30$. Low entropy strings are structurally harder to satisfy simultaneously on both step count and dictionary size, because their skewed character distribution tends to produce fewer distinct substrings, making the dictionary grow more slowly and step counts harder to hit. The spike for high entropy at $n = 30$ occurs because the combined tolerance on both targets becomes difficult to satisfy with strictly uniform character weights at longer lengths.
+Figure~\ref{fig:attempts_vs_length} shows an difference between the two profiles that is not visible from the output metrics alone. The low entropy profile requires consistently around 10,000 to 20,000 generation attempts at all string lengths, while the high entropy profile requires far fewer at moderate lengths but spikes at $n = 30$. Low entropy strings are structurally harder to satisfy simultaneously for both step count and dictionary size, because their skewed character distribution tends to produce fewer distinct substrings, making the dictionary grow more slowly and step counts harder to hit. The spike for high entropy at $n = 30$ occurs because the combined tolerance on both targets becomes difficult to satisfy with strictly uniform character weights at longer lengths.
 
 \begin{figure}[htb]
     \centering
@@ -553,9 +547,9 @@ The first question is addressed through quantitative analysis of generated exerc
 
 \subsection{Step Count Control}
 
-The most direct measure of whether exercises are equally difficult is step count, since each step corresponds to one row the student must complete in the table. Figure~\ref{fig:steps_vs_length} shows that both profiles track the $0.65n$ target closely across all tested lengths, with standard deviation bands that collapse almost to zero. Within a batch generated at a fixed length and profile, every exercise requires essentially the same number of written steps.
+The most direct measure of whether exercises are equally difficult is step count, since each step corresponds to one row the student must complete in the table. Figure~\ref{fig:steps_vs_length} shows that both profiles track the $0.65n$ target closely across all tested lengths, with standard deviation that is almost 0, so within a batch generated for a fixed length and profile, every exercise requires almost the same number of steps.
 
-Table~\ref{tab:consistency} summarises the consistency metrics for a batch of 60 exercises generated at $n = 15$ for each profile. The coefficient of variation (CV) measures spread relative to the mean; a lower CV indicates more consistent difficulty.
+Table~\ref{tab:consistency} summarises the consistency metrics for a batch of 60 exercises generated at $n = 15$ for each profile.The coefficient of variation (CV) measures how spread out the values are relative to the mean as a lower CV means the difficulty is more consistent.
 
 \begin{table}[htb]
 \caption{Difficulty consistency metrics for 60 generated exercises per profile at string length $n = 15$. CV denotes coefficient of variation (standard deviation / mean $\times$ 100\%).}
@@ -573,7 +567,7 @@ Dictionary size & Low entropy  & \num{10.10} & \num{0.30} & 10 & 11 \\
 \end{tabular}
 \end{table}
 
-Step count CV is 0\% for both profiles at $n = 15$, confirming that the acceptance criterion is functioning as intended. Shannon entropy varies more, with a standard deviation of approximately 0.11 bits for high entropy and 0.13 bits for low entropy. This is expected: the generator controls step count and dictionary size directly and treats entropy as a diagnostic signal. The entropy variation reflects the natural diversity of strings that satisfy the step count and dictionary constraints.
+Step count CV is 0\% for both profiles at $n = 15$, confirming that the acceptance criteria is functioning as intended. Shannon entropy varies more, with a standard deviation of approximately 0.11 bits for high entropy and 0.13 bits for low entropy. This is expected: the generator controls step count and dictionary size directly and treats entropy as a diagnostic signal. The entropy variation reflects the natural diversity of strings that satisfy the step count and dictionary constraints.
 
 \subsection{Entropy and Input Variance}
 
@@ -594,7 +588,7 @@ Figure~\ref{fig:entropy_vs_vv_eval} shows the relationship between Shannon entro
 
 \section{Class Test Study}
 
-Five students enrolled in COMPSCI2026 completed a generated LZW compression or decompression exercise under test-like conditions, then filled in a short questionnaire about their experience. All participants provided informed consent prior to taking part, and the study was conducted in accordance with the School of Computing Science ethics checklist, a signed copy of which is included in Appendix~A. All five reported feeling Confident or Very Confident in their understanding of LZW, which is a useful baseline: feedback from students who already knew the material is more meaningful than feedback from those still learning it.
+Five students enrolled in COMPSCI2026 completed a generated LZW compression or decompression exercise under test-like conditions, then filled in a short questionnaire about their experience. All participants provided informed consent prior to taking part, and the study was conducted in accordance with the School of Computing Science ethics checklist, a signed copy of which is included in Appendix~A. All five reported feeling Confident or Very Confident in their understanding of LZW, which is a useful baseline as feedback from students who already knew the material is more meaningful than feedback from those still learning it.
 
 \begin{table}[htb]
 \label{tab:class_test_summary}
@@ -611,16 +605,15 @@ Fairness of differentiation    & 2/5 (40\%)  & 1 neutral, 2 negative \\
 are those in the top two categories for each question.}
 \end{table}
 
-The results for the first four questions were strongly positive. 80\% of participants rated the generated questions as Similar or Very Similar in difficulty to questions they had seen in class, with the remaining 20\% selecting Neither Similar nor Dissimilar. All five agreed or strongly agreed that the question tested their understanding of LZW principles, and all five found the randomly generated input string Clear or Very Clear to work with.
+The results for the first four questions were positive. 80\% of participants rated the generated questions as similar or very similar in difficulty to questions they had seen in class, with the remaining 20\% selecting neither similar nor dissimilar. All five agreed or strongly agreed that the question tested their understanding of LZW principles, and all five found the randomly generated input string clear or very clear to work with.
 
-The fairness question produced the most mixed responses: two participants
-Strongly Agreed that receiving different but equally difficult questions is fair, one was neutral, one Disagreed, and one Strongly Disagreed. The free-text responses suggest the split comes down to a distinction between varying the input string, which participants were broadly comfortable with, and varying the type of question or algorithm, which they were not. This is consistent with how the generator works: every student gets a different string but the same question type, algorithm, and table format. The negative responses likely reflect a general discomfort with differentiated assessment rather than a specific objection to this approach. Given the sample size of five, these results should be treated as indicative rather than conclusive.
+The fairness question produced the most mixed responses. Two participants strongly agreed that receiving different but equally difficult questions is fair, one was neutral, one disagreed, and one strongly disagreed. The free-text responses suggest the split comes down to a distinction between varying the input string, which participants were broadly comfortable with, and varying the type of question or algorithm, which they were not. This is consistent with how the generator works: every student gets a different string but the same question type, algorithm, and table format. The negative responses likely reflect a general discomfort with differentiated assessments rather than a specific dislike to this approach. Given the sample size of five, these results should be treated as indicative rather than conclusive.
 
 \section{Usability Study}
 
 Eleven participants with a computing science background were given access to the compression and decompression question generators. All participants provided informed consent prior to taking part under the same ethics approval. They were free to use the generators as much as they wished before completing a short survey evaluating both usability and output quality.
 
-Overall, responses were consistently positive. All participants rated the generator interface as Intuitive or Very Intuitive, and all trusted the generator to produce fair questions. Ten out of eleven participants felt that questions with different symbol patterns varied in difficulty, even when requiring the same number of steps (the remaining participant selected Maybe rather than No). In addition, all participants agreed or strongly agreed that step count scales proportionally with string length, supporting the  results shown in Figure~\ref{fig:steps_vs_length}.
+Overall, responses were consistently positive. All participants rated the generator interface as intuitive or very intuitive, and all trusted the generator to produce fair questions. Ten out of eleven participants felt that questions with different symbol patterns varied in difficulty, even when requiring the same number of steps (the remaining participant selected maybe rather than no). In addition, all participants agreed or strongly agreed that step count scales proportionally with string length, supporting the  results shown in Figure~\ref{fig:steps_vs_length}.
 
 The most useful insight came from Questions 4 and 5. All eleven participants found low-entropy, repetitive-pattern questions easier than high-entropy, more evenly distributed ones, with seven choosing slightly easier and four choosing much easier. No one thought they were equally difficult or harder. This supports the idea behind the two-profile design: difficulty isn’t just about the number of steps. The way characters are distributed in the input also has a clear impact on how hard a question feels. This is exactly what input variation is trying to capture.
 
@@ -639,7 +632,7 @@ Step count scales with length    & 11/11 (100\%) & 0 \\
 \caption{Summary of usability study responses ($n = 11$). Positive responses are those in the top two categories for each question.}
 \end{table}
 
-Nine out of eleven participants agreed or strongly agreed that differences in automatically generated inputs can affect how difficult a question feels, while two selected Neutral and none disagreed. This lines up with the results from Questions 4 and 5, suggesting that participants not only noticed but also experienced the impact of character distribution on difficulty, separate from the number of steps involved.
+Nine out of eleven participants agreed or strongly agreed that differences in automatically generated inputs can affect how difficult a question feels, while two selected neutral and none disagreed. This lines up with the results from Questions 4 and 5, suggesting that participants not only noticed but also experienced the impact of character distribution on difficulty, separate from the number of steps involved.
 
 As this was a usability study rather than a controlled experiment, the findings should be interpreted as indicative rather than definitive. However, the consistency of responses provides  confidence that the question generator design and output functions as intended.
 
@@ -668,7 +661,7 @@ Produce question sheet and answer key per exercise & Met &
 Configurable batch size & Met & Section~5.2 \\
 Metrics reported to terminal per exercise & Met & Figure~\ref{fig:terminal_output} \\
 Reject strings with long identical-character runs & Met & Section~5.2.1 \\
-Usable with three parameters or fewer & Met & Section~5.6 \\
+Usable with three parameters or fewer & Met & Section~4.6 \\
 Generator correctness: answer key matches simulation & Met &
     Design guarantees consistency by construction \\
 Consistent difficulty within a batch (low step CV) & Met &
@@ -687,11 +680,11 @@ This project set out to build a system that automatically generates LZW compress
 
 The motivation for this approach came straight from noticing the tension between fairness and collusion resistance in class tests. The key insight was that LZW’s step-by-step execution produces a structured, verifiable trace, which maps naturally onto a table exercise. Instead of trying to control difficulty through the input string itself, I realised it could be managed by targeting properties of that trace. This led to the generate-and-filter design: generate candidate strings, simulate the algorithm, and accept or reject them based on whether the execution falls within a desired difficulty band.
 
-The outcome of this work is the development of two Python-based tools that generate fully formatted LaTeX question and answer sheets fit for use in class tests. Both compression and decompression exercises are supported, including the decompression special case where a code is encountered before its dictionary entry is fully defined, a known teaching point that the generator can optionally target. Difficulty is controlled through step count and dictionary size targeting, with Shannon entropy and input variance tracked as diagnostic measures. Across 60 generated exercises per profile at $n = 15$, step count coefficient of variation was 0\%, meaning every exercise in a batch required exactly the same number of written steps. The two profiles were well-separated on Shannon entropy (means of \num{1.85} and \num{1.50} bits per symbol), and all generated exercises compressed successfully. A class test study with five COMPSCI2026 students (drawn from a pool of 18) found that generated exercises were rated as comparable in difficulty to class examples, clear to work with, and effective at testing understanding of the algorithm.
+The outcome of this work is the development of two Python-based tools that generate fully formatted LaTeX question and answer sheets fit for use in class tests. Both compression and decompression exercises are supported, including the decompression special case where a code is encountered before its dictionary entry is fully defined. Difficulty is controlled through step count and dictionary size targeting, with Shannon entropy and input variance tracked as diagnostic measures. Across 60 generated exercises per profile at $n = 15$, step count coefficient of variation was 0\%, meaning every exercise in a batch required exactly the same number of written steps. The two profiles were well-separated on Shannon entropy (means of \num{1.85} and \num{1.50} bits per symbol), and all generated exercises compressed successfully. A class test study with five COMPSCI2026 students (drawn from a pool of 18) found that generated exercises were rated as comparable in difficulty to class examples, clear to work with, and effective at testing understanding of the algorithm.
 
 \section{Reflection}
 
-One thing that only became clear after running the generator at scale was how many attempts the low entropy profile needs — consistently in the range of 10,000 to 20,000 per exercise. The tolerances and weight vectors were tuned empirically, which worked but meant a lot of iteration before the generator behaved reliably. With more time, it would have been worth analysing the distribution of LZW step counts for a given character weight vector upfront, so the acceptance criteria could be set more precisely from the start rather than adjusted through repeated testing.
+One insight that only became clear after running the generator at scale was just how many attempts the low-entropy profile requires — consistently between 10,000 and 20,000 per exercise. The tolerances and weight vectors were tuned through trial and error, which worked but involved a lot of iteration before the generator behaved reliably. Given more time, it would have been useful to analyse the distribution of LZW step counts for a given character weight vector beforehand, so the acceptance criteria could be set more precisely from the start rather than adjusted through repeated testing.
 
 The compression and decompression generators were also developed somewhat independently, which led to duplicated logic and inconsistent quality criteria between the two. Extracting the shared difficulty control code into a common module from the start would have made the system easier to maintain and extend.
 
@@ -700,13 +693,13 @@ Finally, input variance is controlled indirectly through the character weight ch
 \section{Future Work}
 
 \paragraph{Interface and student use.} 
-The current command-line interface is designed for an educator generating a batch of exercises. A natural extension would be a lightweight web interface that allows educators to configure and download exercises without using a terminal. Beyond the educator use case, the generator could be adapted into a student practice tool, allowing students to generate and attempt unlimited exercises before a class test. This would give the generator a second purpose beyond assessment: supported self-study with automatically generated, verified practice questions.
+The command-line interface is currently aimed at educators producing exercise batches. A simple web interface could make it easier for them to configure and download exercises without using a terminal. The generator could also serve as a student practice tool, enabling unlimited attempts before a test and supporting self-study with verified, automatically generated questions.
 
 \paragraph{Additional algorithms.}
 The most direct extension would be to add support for Huffman coding. Like LZW, Huffman coding has a step-by-step execution that translates naturally into a table exercise, and its difficulty is tied to character frequencies in a way that is straightforward to characterise. Supporting multiple algorithms would allow an educator to generate a class test where different students receive not only different inputs but different algorithm types entirely, which would reduce collusion further than varying the input string alone.
 
 \paragraph{Constructive generation.}
-Replacing the generate-and-filter approach with a constructive one would address the high attempt count for low entropy strings. Rather than sampling random strings and rejecting most of them, a constructive generator would build the string one character at a time, making choices that keep the running LZW execution within the target band. Because LZW depends on the full history of the string, a simple greedy strategy would not always succeed; backtracking or beam search would be more reliable, and would also make it easier to target the decompression special case directly rather than filtering for it.
+Replacing the generate-and-filter approach with a constructive one could reduce the high number of attempts needed for low-entropy strings. Instead of sampling random strings and rejecting most of them, a constructive generator would build the string character by character, making choices at each position that keep the running LZW execution within the target band. The challenge is that LZW's behaviour depends on the full history of the string, so a single-pass strategy cannot always guarantee the final result will meet the targets. Search-based approaches such as backtracking or beam search could handle this more reliably, since they can explore and revise earlier decisions when a partial string leads to a dead end. Backtracking could be expensive in the worst case, since a poor early character choice may not reveal itself as problematic until many steps later, requiring significant unwinding. Beam search avoids this by only keeping the most promising partial strings at each step, but introduces a width parameter that trades off solution quality against speed, and may still miss valid strings if too few candidates are kept.
 
 %==================================================================================================================================
 %
